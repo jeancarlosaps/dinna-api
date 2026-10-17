@@ -49,7 +49,7 @@ As fontes não são embutidas e o GitHub usa as do sistema de quem visita. Por i
 
 ## Movimento
 
-- Só nos heros (`hero.svg`): entrada única com menos de 4 segundos, sem loop.
+- Só nos heros (`hero.svg`): entrada única de até 4 segundos, sem loop.
 - `@media (prefers-reduced-motion: reduce)` desliga toda a animação.
 - Cada hero animado tem um `hero-still.svg` com a mesma composição, servido pelo `<picture>` do README quando o movimento reduzido está ativo.
 - O estado final da animação é igual à versão estática.
