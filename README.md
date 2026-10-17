@@ -86,7 +86,7 @@ Fundação (R0) **em andamento**. A API sobe, responde ao health check e já tem
 
 | Peça                       | Versão                                    | Por quê                                                                       |
 | -------------------------- | ----------------------------------------- | ----------------------------------------------------------------------------- |
-| Node.js                    | 24 LTS na CI (`.nvmrc`); mínimo `>=22.13` | LTS ativo; carrega `.env` nativamente (`--env-file-if-exists`)                |
+| Node.js                    | 24 LTS na CI (`.nvmrc`); mínimo `>=22.13` | Linha LTS; carrega `.env` nativamente (`--env-file-if-exists`)                |
 | TypeScript                 | 6.0.3, `strict`                           | O typescript-eslint 8 só suporta TypeScript `<6.1`, por isso não usamos o 7.x |
 | Fastify                    | 5.12.7                                    | Rápido e simples, com validação por JSON Schema embutida e plugins por módulo |
 | Vitest                     | 5.0.5                                     | Testes rápidos com `app.inject`, sem abrir porta                              |
