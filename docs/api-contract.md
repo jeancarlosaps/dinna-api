@@ -1,6 +1,5 @@
 # Contrato REST — Dinna API
 
-
 > **Status:** aceito (SCRUM-24 · T1.5).  
 > Este documento é a fonte de verdade do contrato entre **dinna-api** e **dinna-flutter**.  
 > Mudança de rota, payload ou código de erro exige atualização deste arquivo no mesmo PR.

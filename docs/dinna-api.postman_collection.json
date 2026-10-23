@@ -56,12 +56,8 @@
             "header": [],
             "url": {
               "raw": "{{baseUrl}}/products?category=burgers&available=true",
-              "host": [
-                "{{baseUrl}}"
-              ],
-              "path": [
-                "products"
-              ],
+              "host": ["{{baseUrl}}"],
+              "path": ["products"],
               "query": [
                 {
                   "key": "category",
@@ -92,12 +88,8 @@
             "header": [],
             "url": {
               "raw": "{{baseUrl}}/products?q=brownie",
-              "host": [
-                "{{baseUrl}}"
-              ],
-              "path": [
-                "products"
-              ],
+              "host": ["{{baseUrl}}"],
+              "path": ["products"],
               "query": [
                 {
                   "key": "q",
@@ -238,12 +230,8 @@
             "header": [],
             "url": {
               "raw": "{{baseUrl}}/orders?status=received&table=12",
-              "host": [
-                "{{baseUrl}}"
-              ],
-              "path": [
-                "orders"
-              ],
+              "host": ["{{baseUrl}}"],
+              "path": ["orders"],
               "query": [
                 {
                   "key": "status",
