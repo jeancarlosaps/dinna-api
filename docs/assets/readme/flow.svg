@@ -59,6 +59,6 @@
   <rect x="330" y="372" width="1200" height="58" rx="18" fill="#E6ECE1"/>
   <text x="358" y="408" font-family="'SF Mono', Menlo, Consolas, 'Liberation Mono', monospace" font-size="16" font-weight="600" fill="#5E7355">GET /orders</text>
   <text x="490" y="408" font-family="'Avenir Next', Avenir, 'Helvetica Neue', 'Segoe UI', Roboto, Arial, sans-serif" font-size="18" font-weight="500" fill="#2A211C">fila do restaurante, lida pelo perfil restaurante do app</text>
-  <text x="72" y="486" font-family="'Avenir Next', Avenir, 'Helvetica Neue', 'Segoe UI', Roboto, Arial, sans-serif" font-size="17" font-weight="500" fill="#6F625A">Rascunho de contrato — nomes e transições são aceitos na SCRUM-24. Hoje a API implementa apenas GET /health.</text>
+  <text x="72" y="486" font-family="'Avenir Next', Avenir, 'Helvetica Neue', 'Segoe UI', Roboto, Arial, sans-serif" font-size="17" font-weight="500" fill="#6F625A">Contrato aceito na SCRUM-24. Hoje a API implementa apenas GET /health; products e orders vêm no R1.</text>
 
 </svg>

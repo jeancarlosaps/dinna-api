@@ -1,0 +1,338 @@
+{
+  "info": {
+    "_postman_id": "b7e4c1a2-8f30-4d6e-9a15-0d1aa0a10001",
+    "name": "Dinna API",
+    "description": "Collection da dinna-api.\n\nSuba a API com `npm run dev` e importe este arquivo no Postman (Import → File).\n\nBase: `{{baseUrl}}` = http://localhost:3333.\n\nRotas em **Health** e **Products** estão implementadas. A pasta **Contrato (ainda sem código)** documenta pedidos e recomendação: hoje a API responde 404 `NOT_FOUND`.\n\n`DELETE /products/:id` é soft-delete (`available: false`) e devolve 204 sem corpo.",
+    "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
+  },
+  "variable": [
+    {
+      "key": "baseUrl",
+      "value": "http://localhost:3333"
+    },
+    {
+      "key": "productId",
+      "value": "p1"
+    },
+    {
+      "key": "createdProductId",
+      "value": ""
+    }
+  ],
+  "item": [
+    {
+      "name": "Health",
+      "item": [
+        {
+          "name": "GET /health",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": "{{baseUrl}}/health",
+            "description": "200 `{ \"status\": \"ok\" }`."
+          },
+          "response": []
+        }
+      ]
+    },
+    {
+      "name": "Products",
+      "description": "CRUD implementado. O seed traz `p1`–`p12` (p8 já nasce com `available: false`).",
+      "item": [
+        {
+          "name": "GET /products",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": "{{baseUrl}}/products",
+            "description": "Lista o cardápio inteiro. 200, array de Product."
+          },
+          "response": []
+        },
+        {
+          "name": "GET /products?category&available",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/products?category=burgers&available=true",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "products"
+              ],
+              "query": [
+                {
+                  "key": "category",
+                  "value": "burgers",
+                  "description": "Slug exato: burgers, acompanhamentos, bebidas, sobremesas"
+                },
+                {
+                  "key": "available",
+                  "value": "true",
+                  "description": "true ou false. Omita para não filtrar."
+                },
+                {
+                  "key": "q",
+                  "value": "brownie",
+                  "description": "Busca em name e description",
+                  "disabled": true
+                }
+              ]
+            },
+            "description": "Filtros opcionais. `q` está desligado neste request; habilite na aba Params para buscar por texto."
+          },
+          "response": []
+        },
+        {
+          "name": "GET /products?q=brownie",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/products?q=brownie",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "products"
+              ],
+              "query": [
+                {
+                  "key": "q",
+                  "value": "brownie"
+                }
+              ]
+            },
+            "description": "Busca case-insensitive em name e description. O seed devolve o Brownie (`p7`)."
+          },
+          "response": []
+        },
+        {
+          "name": "GET /products/:id",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": "{{baseUrl}}/products/{{productId}}",
+            "description": "200 com o produto. Troque `productId` na collection (padrão `p1`, Burger Clássico)."
+          },
+          "response": []
+        },
+        {
+          "name": "GET /products/:id inexistente",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": "{{baseUrl}}/products/nao-existe",
+            "description": "404 `{ \"error\": { \"code\": \"PRODUCT_NOT_FOUND\" } }`."
+          },
+          "response": []
+        },
+        {
+          "name": "POST /products",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "if (pm.response.code === 201) {",
+                  "  const body = pm.response.json();",
+                  "  if (body.id) pm.collectionVariables.set('createdProductId', body.id);",
+                  "}"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"name\": \"Milkshake\",\n  \"description\": \"Creme de baunilha\",\n  \"category\": \"bebidas\",\n  \"priceCents\": 1890\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "url": "{{baseUrl}}/products",
+            "description": "201 com `id` gerado (`p_…`). `available` vira `true` e `imageUrl` vira `null` se omitidos. O script grava o id em `createdProductId`."
+          },
+          "response": []
+        },
+        {
+          "name": "POST /products body inválido",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"name\": \"Sem preço\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "url": "{{baseUrl}}/products",
+            "description": "400 `{ \"error\": { \"code\": \"VALIDATION_ERROR\", \"details\": [] } }`. Faltam description, category e priceCents."
+          },
+          "response": []
+        },
+        {
+          "name": "PUT /products/:id",
+          "request": {
+            "method": "PUT",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"name\": \"Burger Clássico+\",\n  \"description\": \"Pão brioche, blend 180g, queijo cheddar e salada\",\n  \"category\": \"burgers\",\n  \"priceCents\": 3490,\n  \"imageUrl\": null,\n  \"available\": true\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "url": "{{baseUrl}}/products/{{productId}}",
+            "description": "Substitui o produto. 200 com o Product atualizado. Body igual ao de criação (sem id)."
+          },
+          "response": []
+        },
+        {
+          "name": "DELETE /products/:id (soft-delete)",
+          "request": {
+            "method": "DELETE",
+            "header": [],
+            "url": "{{baseUrl}}/products/{{createdProductId}}",
+            "description": "204 sem corpo. Marca `available: false` e não apaga o registro. Rode o POST antes: este request usa `createdProductId`. Repetir o DELETE no mesmo id continua 204. Id inexistente devolve 404 `PRODUCT_NOT_FOUND`."
+          },
+          "response": []
+        }
+      ]
+    },
+    {
+      "name": "Contrato (ainda sem código)",
+      "description": "Aceito em docs/api-contract.md. O módulo ainda não existe: cada request responde 404 NOT_FOUND.",
+      "item": [
+        {
+          "name": "GET /orders",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/orders?status=received&table=12",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "orders"
+              ],
+              "query": [
+                {
+                  "key": "status",
+                  "value": "received",
+                  "description": "received | preparing | ready | finished"
+                },
+                {
+                  "key": "table",
+                  "value": "12"
+                }
+              ]
+            },
+            "description": "Fila do restaurante. Ainda não implementado."
+          },
+          "response": []
+        },
+        {
+          "name": "POST /orders",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"table\": \"12\",\n  \"items\": [\n    { \"productId\": \"p1\", \"quantity\": 2, \"note\": \"sem cebola\" },\n    { \"productId\": \"p2\", \"quantity\": 1 }\n  ]\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "url": "{{baseUrl}}/orders",
+            "description": "Cria pedido na mesa. Status inicial `received`. `totalCents` é calculado pela API. Ainda não implementado."
+          },
+          "response": []
+        },
+        {
+          "name": "PATCH /orders/:id/status",
+          "request": {
+            "method": "PATCH",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"status\": \"preparing\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "url": "{{baseUrl}}/orders/o1/status",
+            "description": "Avança um passo: received → preparing → ready → finished. Ainda não implementado."
+          },
+          "response": []
+        },
+        {
+          "name": "POST /ai/recommendation",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"table\": \"12\",\n  \"preferences\": \"sem glúten, leve\",\n  \"limit\": 3\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "url": "{{baseUrl}}/ai/recommendation",
+            "description": "Recomendação (R2). Ainda não implementado."
+          },
+          "response": []
+        }
+      ]
+    }
+  ]
+}
