@@ -6,16 +6,19 @@ import { createOrder } from '../src/modules/orders/orders.repository.js';
 import { AppError } from '../src/shared/errors/app-error.js';
 
 describe('orders', () => {
-  let app: FastifyInstance;
+  let app: FastifyInstance | undefined;
 
   afterEach(async () => {
-    await app.close();
+    const openedApp = app;
+    app = undefined;
+    await openedApp?.close();
   });
 
   it('POST /orders cria pedido, calcula o total e inicia em received', async () => {
-    app = buildApp();
+    const currentApp = buildApp();
+    app = currentApp;
 
-    const response = await app.inject({
+    const response = await currentApp.inject({
       method: 'POST',
       url: '/orders',
       payload: {
@@ -42,9 +45,10 @@ describe('orders', () => {
   });
 
   it('POST /orders rejeita corpo inválido e lista vazia', async () => {
-    app = buildApp();
+    const currentApp = buildApp();
+    app = currentApp;
 
-    const invalidBody = await app.inject({
+    const invalidBody = await currentApp.inject({
       method: 'POST',
       url: '/orders',
       payload: { table: '12', items: [{ productId: 'p1', quantity: 0 }] },
@@ -52,7 +56,7 @@ describe('orders', () => {
     expect(invalidBody.statusCode).toBe(400);
     expect(invalidBody.json()).toMatchObject({ error: { code: 'VALIDATION_ERROR' } });
 
-    const emptyItems = await app.inject({
+    const emptyItems = await currentApp.inject({
       method: 'POST',
       url: '/orders',
       payload: { table: '12', items: [] },
@@ -62,10 +66,11 @@ describe('orders', () => {
   });
 
   it('POST /orders rejeita produto inexistente ou indisponível', async () => {
-    app = buildApp();
+    const currentApp = buildApp();
+    app = currentApp;
 
     for (const productId of ['nao-existe', 'p8']) {
-      const response = await app.inject({
+      const response = await currentApp.inject({
         method: 'POST',
         url: '/orders',
         payload: { table: '12', items: [{ productId, quantity: 1 }] },
@@ -76,21 +81,77 @@ describe('orders', () => {
     }
   });
 
-  it('createOrder desfaz toda a gravação quando um item é inválido', () => {
+  it('POST /orders rejeita quantidades e totais sem precisão segura em centavos', async () => {
+    const currentApp = buildApp();
+    app = currentApp;
+
+    const unsafeQuantity = await currentApp.inject({
+      method: 'POST',
+      url: '/orders',
+      payload: {
+        table: '12',
+        items: [{ productId: 'p1', quantity: Number.MAX_SAFE_INTEGER + 1 }],
+      },
+    });
+    expect(unsafeQuantity.statusCode).toBe(400);
+    expect(unsafeQuantity.json()).toMatchObject({ error: { code: 'VALIDATION_ERROR' } });
+
+    const unsafeTotal = await currentApp.inject({
+      method: 'POST',
+      url: '/orders',
+      payload: {
+        table: '12',
+        items: [{ productId: 'p1', quantity: 10_000_000_000_001 }],
+      },
+    });
+    expect(unsafeTotal.statusCode).toBe(400);
+    expect(unsafeTotal.json()).toMatchObject({ error: { code: 'VALIDATION_ERROR' } });
+  });
+
+  it('createOrder rejeita total sem precisão segura antes de persistir', () => {
     const db = openDatabase({ path: ':memory:' });
 
     try {
       expect(() =>
         createOrder(db, {
           table: '12',
-          items: [
-            { productId: 'p1', quantity: 1 },
-            { productId: 'p8', quantity: 1 },
-          ],
+          items: [{ productId: 'p1', quantity: 10_000_000_000_001 }],
         }),
       ).toThrowError(
-        expect.objectContaining({ code: 'PRODUCT_NOT_FOUND' } satisfies Partial<AppError>),
+        expect.objectContaining({ code: 'VALIDATION_ERROR' } satisfies Partial<AppError>),
       );
+
+      const orderCount = db.prepare('SELECT COUNT(*) AS count FROM orders').get() as {
+        count: number;
+      };
+      expect(orderCount.count).toBe(0);
+    } finally {
+      db.close();
+    }
+  });
+
+  it('createOrder desfaz pedido e item anterior quando um insert de item falha', () => {
+    const db = openDatabase({ path: ':memory:' });
+
+    try {
+      db.exec(`
+        CREATE TRIGGER fail_second_order_item
+        BEFORE INSERT ON order_items
+        WHEN NEW.product_id = 'p2'
+        BEGIN
+          SELECT RAISE(ABORT, 'simulated second item insert failure');
+        END;
+      `);
+
+      expect(() =>
+        createOrder(db, {
+          table: '12',
+          items: [
+            { productId: 'p1', quantity: 1 },
+            { productId: 'p2', quantity: 1 },
+          ],
+        }),
+      ).toThrow('simulated second item insert failure');
 
       const orderCount = db.prepare('SELECT COUNT(*) AS count FROM orders').get() as {
         count: number;

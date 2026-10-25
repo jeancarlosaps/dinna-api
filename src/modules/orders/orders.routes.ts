@@ -9,7 +9,7 @@ const orderItemSchema = {
   required: ['productId', 'quantity'],
   properties: {
     productId: { type: 'string', minLength: 1 },
-    quantity: { type: 'integer', minimum: 1 },
+    quantity: { type: 'integer', minimum: 1, maximum: Number.MAX_SAFE_INTEGER },
     note: { type: 'string', maxLength: 200 },
   },
 } as const;

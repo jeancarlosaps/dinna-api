@@ -80,11 +80,11 @@ Códigos de recurso (usados com 404/`AppError`):
 { "productId": "p1", "quantity": 2, "note": "sem cebola" }
 ```
 
-| Campo       | Tipo     | Obrigatório | Notas                                             |
-| ----------- | -------- | ----------- | ------------------------------------------------- |
-| `productId` | `string` | sim         | Deve existir e estar `available: true` na criação |
-| `quantity`  | `number` | sim         | Inteiro ≥ 1                                       |
-| `note`      | `string` | não         | Máx. 200; observação do cliente                   |
+| Campo       | Tipo     | Obrigatório | Notas                                                      |
+| ----------- | -------- | ----------- | ---------------------------------------------------------- |
+| `productId` | `string` | sim         | Deve existir e estar `available: true` na criação          |
+| `quantity`  | `number` | sim         | Inteiro seguro ≥ 1; total precisa caber em centavos exatos |
+| `note`      | `string` | não         | Máx. 200; observação do cliente                            |
 
 ### Order
 
@@ -267,10 +267,11 @@ Cria pedido a partir da mesa. Status inicial sempre `received`.
 ```
 
 **201 Created** — `Order` completo.  
-**400** — `VALIDATION_ERROR` (body inválido; lista vazia; `quantity` &lt; 1).  
+**400** — `VALIDATION_ERROR` (body inválido; lista vazia; `quantity` &lt; 1 ou insegura; total fora da faixa de inteiros seguros).
+
 **404** — `PRODUCT_NOT_FOUND` se algum `productId` não existir **ou** estiver `available: false`.
 
-A gravação do pedido e de seus itens é atômica: se qualquer produto estiver ausente ou indisponível, nenhuma parte do pedido é persistida.
+A gravação do pedido e de seus itens é atômica: falhas durante a validação ou inserção não deixam pedido nem itens parcialmente persistidos.
 
 Exemplo de resposta:
 

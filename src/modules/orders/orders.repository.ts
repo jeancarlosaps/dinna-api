@@ -30,7 +30,25 @@ export function createOrder(db: Db, input: CreateOrderInput): Order {
         );
       }
 
-      totalCents += product.price_cents * item.quantity;
+      if (
+        !Number.isSafeInteger(item.quantity) ||
+        item.quantity < 1 ||
+        !Number.isSafeInteger(product.price_cents)
+      ) {
+        throw new AppError(400, 'VALIDATION_ERROR', 'Quantidade ou preço inválido para o pedido');
+      }
+
+      const itemTotalCents = product.price_cents * item.quantity;
+      const nextTotalCents = totalCents + itemTotalCents;
+      if (!Number.isSafeInteger(itemTotalCents) || !Number.isSafeInteger(nextTotalCents)) {
+        throw new AppError(
+          400,
+          'VALIDATION_ERROR',
+          'O total do pedido excede o limite para cálculo exato em centavos',
+        );
+      }
+
+      totalCents = nextTotalCents;
     }
 
     const order: Order = {

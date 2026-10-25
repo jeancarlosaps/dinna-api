@@ -74,7 +74,7 @@ Fundação (R0) **em andamento**. Health, SQLite, seed de cardápio e CRUD de `/
 | Formato único de erro (400 / 404 / `AppError` / 500)                 | ✅ Implementado e testado                      |
 | Validação de entrada com JSON Schema nativo do Fastify               | ✅ Em uso nas rotas de produtos                |
 | Variáveis de ambiente (`HOST`, `PORT`, `LOG_LEVEL`, `DATABASE_PATH`) | ✅ Implementado e testado                      |
-| Lint, format, typecheck, testes, build, CI                           | ✅ 19 testes · GitHub Actions                  |
+| Lint, format, typecheck, testes, build, CI                           | ✅ 21 testes · GitHub Actions                  |
 | `/products` (CRUD + filtros)                                         | ✅ Implementado e testado (SCRUM-25)           |
 | Persistência SQLite (`node:sqlite`) + seed                           | ✅ Implementado                                |
 | `POST /orders`                                                       | ✅ Implementado e testado (SCRUM-45)           |
@@ -301,15 +301,15 @@ Todas as respostas de erro usam o mesmo formato:
 | `npm run format:check` | Prettier, só verificando           |
 | `npm run build`        | Compila para `dist/`               |
 
-O que os 19 testes cobrem:
+O que os 21 testes cobrem:
 
-| Arquivo                       | Cobre                                                                           |
-| ----------------------------- | ------------------------------------------------------------------------------- |
-| `tests/health.test.ts`        | `GET /health` responde 200 com `{ "status": "ok" }`                             |
-| `tests/error-handler.test.ts` | 404 padronizado, 400 de validação, `AppError` e 500 sem vazar o detalhe         |
-| `tests/env.test.ts`           | Valores padrão e rejeição de `PORT`, `LOG_LEVEL` e `DATABASE_PATH`              |
-| `tests/products.test.ts`      | Listagem/filtros, detalhe, create, update, soft-delete e erros                  |
-| `tests/orders.test.ts`        | Criação, status inicial, total, validação, produtos indisponíveis e atomicidade |
+| Arquivo                       | Cobre                                                                                            |
+| ----------------------------- | ------------------------------------------------------------------------------------------------ |
+| `tests/health.test.ts`        | `GET /health` responde 200 com `{ "status": "ok" }`                                              |
+| `tests/error-handler.test.ts` | 404 padronizado, 400 de validação, `AppError` e 500 sem vazar o detalhe                          |
+| `tests/env.test.ts`           | Valores padrão e rejeição de `PORT`, `LOG_LEVEL` e `DATABASE_PATH`                               |
+| `tests/products.test.ts`      | Listagem/filtros, detalhe, create, update, soft-delete e erros                                   |
+| `tests/orders.test.ts`        | Criação, validação de valores monetários, produtos indisponíveis e rollback após falha de insert |
 
 ## 08 · CI
 
