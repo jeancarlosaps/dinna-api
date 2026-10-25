@@ -3,7 +3,7 @@
 <p align="center">
   <picture>
     <source media="(prefers-reduced-motion: reduce)" srcset="docs/assets/readme/hero-still.svg" />
-    <img src="docs/assets/readme/hero.svg" alt="dinna. api — Da mesa à operação. Ilustração conceitual: os perfis cliente e restaurante do app Flutter conversam por REST com um único serviço Fastify; o módulo health está implementado e products, orders e recommendations aparecem como planejados." width="1600" />
+    <img src="docs/assets/readme/hero.svg" alt="dinna. api — Da mesa à operação. Um serviço Fastify atende os perfis cliente e restaurante. Health e CRUD de produtos estão implementados, POST /orders está implementado parcialmente no módulo de pedidos, e a consulta e atualização de pedidos e recomendações seguem planejadas." width="1600" />
   </picture>
 </p>
 
@@ -65,21 +65,22 @@ O Dinna é um app de pedidos feitos **dentro do restaurante** (não é delivery)
 
 ## 01 · Estado atual
 
-Fundação (R0) **em andamento**. Health, SQLite, seed de cardápio e CRUD de `/products` estão prontos. Pedidos ainda não.
+Fundação (R0) **em andamento**. Health, SQLite, seed de cardápio e CRUD de `/products` estão prontos. O módulo de pedidos começou com `POST /orders`; consulta e atualização de status seguem no contrato.
 
-| Item                                                                 | Situação                                                   |
-| -------------------------------------------------------------------- | ---------------------------------------------------------- |
-| Servidor Fastify + TypeScript strict                                 | ✅ Implementado                                            |
-| `GET /health`                                                        | ✅ Implementado e testado                                  |
-| Formato único de erro (400 / 404 / `AppError` / 500)                 | ✅ Implementado e testado                                  |
-| Validação de entrada com JSON Schema nativo do Fastify               | ✅ Em uso nas rotas de produtos                            |
-| Variáveis de ambiente (`HOST`, `PORT`, `LOG_LEVEL`, `DATABASE_PATH`) | ✅ Implementado e testado                                  |
-| Lint, format, typecheck, testes, build, CI                           | ✅ 15 testes · GitHub Actions                              |
-| `/products` (CRUD + filtros)                                         | ✅ Implementado e testado (SCRUM-25)                       |
-| Persistência SQLite (`node:sqlite`) + seed                           | ✅ Implementado                                            |
-| `/orders`, `/orders/:id/status`                                      | ⬜ Planejado (R1), [contrato aceito](docs/api-contract.md) |
-| `/ai/recommendation`                                                 | ⬜ Planejado (R2)                                          |
-| Autenticação                                                         | ⬜ Fora do escopo atual                                    |
+| Item                                                                 | Situação                                       |
+| -------------------------------------------------------------------- | ---------------------------------------------- |
+| Servidor Fastify + TypeScript strict                                 | ✅ Implementado                                |
+| `GET /health`                                                        | ✅ Implementado e testado                      |
+| Formato único de erro (400 / 404 / `AppError` / 500)                 | ✅ Implementado e testado                      |
+| Validação de entrada com JSON Schema nativo do Fastify               | ✅ Em uso nas rotas de produtos                |
+| Variáveis de ambiente (`HOST`, `PORT`, `LOG_LEVEL`, `DATABASE_PATH`) | ✅ Implementado e testado                      |
+| Lint, format, typecheck, testes, build, CI                           | ✅ 19 testes · GitHub Actions                  |
+| `/products` (CRUD + filtros)                                         | ✅ Implementado e testado (SCRUM-25)           |
+| Persistência SQLite (`node:sqlite`) + seed                           | ✅ Implementado                                |
+| `POST /orders`                                                       | ✅ Implementado e testado (SCRUM-45)           |
+| `GET /orders`, `PATCH /orders/:id/status`                            | ⬜ Contrato R1, [aceito](docs/api-contract.md) |
+| `/ai/recommendation`                                                 | ⬜ Planejado (R2)                              |
+| Autenticação                                                         | ⬜ Fora do escopo atual                        |
 
 ---
 
@@ -107,7 +108,7 @@ flowchart LR
   REQ["Requisição HTTP"] --> F["Fastify<br/>buildApp()"]
   F --> VAL{"JSON Schema<br/>da rota"}
   VAL -- "inválido" --> EH["error handler<br/>400 VALIDATION_ERROR"]
-  VAL -- "válido" --> MOD["módulo<br/>health / products"]
+  VAL -- "válido" --> MOD["módulo<br/>health / products / orders"]
   MOD -- "AppError / erro" --> EH
   MOD --> DB["SQLite<br/>node:sqlite"]
   DB --> MOD
@@ -130,6 +131,7 @@ flowchart LR
 | [`src/shared/http/error-handler.ts`](src/shared/http/error-handler.ts)               | Formato único de erro e handler de 404                                              |
 | [`src/modules/health/health.routes.ts`](src/modules/health/health.routes.ts)         | `GET /health`                                                                       |
 | [`src/modules/products/products.routes.ts`](src/modules/products/products.routes.ts) | CRUD `/products`                                                                    |
+| [`src/modules/orders/orders.routes.ts`](src/modules/orders/orders.routes.ts)         | Criação de pedidos (`POST /orders`)                                                 |
 
 ### Estrutura real
 
@@ -147,6 +149,9 @@ src/
 ├── modules/
 │   ├── health/
 │   │   └── health.routes.ts
+│   ├── orders/
+│   │   ├── orders.routes.ts
+│   │   └── orders.repository.ts
 │   └── products/
 │       ├── products.routes.ts
 │       └── products.repository.ts
@@ -157,6 +162,7 @@ tests/
 ├── env.test.ts
 ├── error-handler.test.ts
 ├── health.test.ts
+├── orders.test.ts
 └── products.test.ts
 docs/
 ├── api-contract.md          # contrato REST aceito (SCRUM-24)
@@ -248,7 +254,7 @@ curl http://localhost:3333/nao-existe
 | `PUT`    | `/products/:id`      | R0/R1   | **Implementado** |
 | `DELETE` | `/products/:id`      | R0/R1   | **Implementado** |
 | `GET`    | `/orders`            | R1      | Planejado        |
-| `POST`   | `/orders`            | R1      | Planejado        |
+| `POST`   | `/orders`            | R1      | **Implementado** |
 | `PATCH`  | `/orders/:id/status` | R1      | Planejado        |
 | `POST`   | `/ai/recommendation` | R2      | Planejado        |
 
@@ -295,14 +301,15 @@ Todas as respostas de erro usam o mesmo formato:
 | `npm run format:check` | Prettier, só verificando           |
 | `npm run build`        | Compila para `dist/`               |
 
-O que os 15 testes cobrem:
+O que os 19 testes cobrem:
 
-| Arquivo                       | Cobre                                                                   |
-| ----------------------------- | ----------------------------------------------------------------------- |
-| `tests/health.test.ts`        | `GET /health` responde 200 com `{ "status": "ok" }`                     |
-| `tests/error-handler.test.ts` | 404 padronizado, 400 de validação, `AppError` e 500 sem vazar o detalhe |
-| `tests/env.test.ts`           | Valores padrão e rejeição de `PORT`, `LOG_LEVEL` e `DATABASE_PATH`      |
-| `tests/products.test.ts`      | Listagem/filtros, detalhe, create, update, soft-delete e erros          |
+| Arquivo                       | Cobre                                                                           |
+| ----------------------------- | ------------------------------------------------------------------------------- |
+| `tests/health.test.ts`        | `GET /health` responde 200 com `{ "status": "ok" }`                             |
+| `tests/error-handler.test.ts` | 404 padronizado, 400 de validação, `AppError` e 500 sem vazar o detalhe         |
+| `tests/env.test.ts`           | Valores padrão e rejeição de `PORT`, `LOG_LEVEL` e `DATABASE_PATH`              |
+| `tests/products.test.ts`      | Listagem/filtros, detalhe, create, update, soft-delete e erros                  |
+| `tests/orders.test.ts`        | Criação, status inicial, total, validação, produtos indisponíveis e atomicidade |
 
 ## 08 · CI
 
@@ -334,12 +341,13 @@ Hoje o app chama `GET /health` na tela inicial (**“Verificar conexão com a AP
   <img src="docs/assets/readme/roadmap.svg" alt="Roadmap. R0 Fundação, em andamento: app Flutter com MVVM base, API Fastify com /health, CI, contrato, SQLite e /products. Pedidos no R1. R1 MVP Operacional, planejado. R2 Dinna, Me ajuda a escolher, planejado. R3 Evoluções, icebox." width="1600" loading="lazy" />
 </p>
 
-Tasks R0 que tocam este repositório. **Jira** é o status no board em 16/10/2026; **Código** é o que existe nesta branch.
+Issues de API acompanhadas neste repositório. **Jira** foi consultado em 25/10/2026; **Código** reflete esta branch.
 
-| Issue    | Task                                   | Jira       | Código                                                                                  |
-| -------- | -------------------------------------- | ---------- | --------------------------------------------------------------------------------------- |
-| SCRUM-24 | Definir o contrato inicial da API REST | Em revisão | Contrato aceito em `docs/api-contract.md` (schemas, erros, ciclo de status)             |
-| SCRUM-25 | Preparar backend/mock da API           | Em revisão | SQLite + seed + CRUD `/products`; schema de `orders` pronto; rotas de pedidos ainda não |
+| Issue    | Task                                   | Jira         | Código                                                     |
+| -------- | -------------------------------------- | ------------ | ---------------------------------------------------------- |
+| SCRUM-24 | Definir o contrato inicial da API REST | Concluído    | Contrato aceito em `docs/api-contract.md`                  |
+| SCRUM-25 | Preparar backend/mock da API           | Concluído    | SQLite + seed + CRUD `/products`; schema de pedidos        |
+| SCRUM-45 | Criar pedido (`POST /orders`)          | Em andamento | Rota com validação, total calculado e persistência atômica |
 
 ## 11 · Como contribuir
 
@@ -363,7 +371,7 @@ Os focos vêm da distribuição de issues no backlog (Atividade 2) e não são c
 
 ## 13 · Próximos passos
 
-1. **R1:** implementar o módulo `orders` (`GET`/`POST` `/orders`, `PATCH /orders/:id/status`) sobre o schema já criado.
+1. **R1:** completar o módulo `orders` com `GET /orders` e `PATCH /orders/:id/status` sobre o schema existente.
 2. **R2:** implementar `POST /ai/recommendation` conforme o contrato.
 3. Sincronizar o `roadmap.svg` no [dinna-flutter](https://github.com/jeancarlosaps/dinna-flutter) se o status R0 mudar lá também.
 

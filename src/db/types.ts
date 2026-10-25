@@ -23,3 +23,25 @@ export interface ProductListQuery {
   q?: string;
   available?: boolean;
 }
+
+export type OrderStatus = 'received' | 'preparing' | 'ready' | 'finished';
+
+export interface OrderItem {
+  productId: string;
+  quantity: number;
+  note?: string;
+}
+
+export interface CreateOrderInput {
+  table: string;
+  items: OrderItem[];
+}
+
+export interface Order {
+  id: string;
+  table: string;
+  status: OrderStatus;
+  items: OrderItem[];
+  totalCents: number;
+  createdAt: string;
+}

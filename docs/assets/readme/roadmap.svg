@@ -1,6 +1,6 @@
 <svg xmlns="http://www.w3.org/2000/svg" width="1600" height="610" viewBox="0 0 1600 610" role="img" aria-labelledby="title desc">
   <title id="title">Roadmap do Dinna por releases</title>
-  <desc id="desc">R0 Fundação, em andamento: app Flutter com MVVM base, API Fastify com /health, CI, contrato REST, SQLite, seed e CRUD /products. Pedidos ainda no R1. R1 MVP Operacional, planejado: mesa, cardápio, carrinho, pedido, fila do restaurante. R2 Dinna, planejado: Me ajuda a escolher, com preferências, recomendação e fallback. R3 Evoluções, icebox: QR Code, geolocalização, favoritos e dashboard.</desc>
+  <desc id="desc">R0 Fundação, em andamento: app Flutter com MVVM base, API Fastify com /health, CI, contrato REST, SQLite, seed e CRUD /products. R1 MVP Operacional começou com POST /orders; consulta da fila, atualização de status e fluxo Flutter seguem em andamento. R2 Dinna, planejado: Me ajuda a escolher, com preferências, recomendação e fallback. R3 Evoluções, icebox: QR Code, geolocalização, favoritos e dashboard.</desc>
   <defs>
     <linearGradient id="bg" x1="0" y1="0" x2="1" y2="1"><stop stop-color="#FBF6F0"/><stop offset="1" stop-color="#F3E8DC"/></linearGradient>
     <pattern id="dots" width="46" height="42" patternUnits="userSpaceOnUse"><circle cx="5" cy="6" r="1.1" fill="#2A211C" opacity="0.06"/><circle cx="29" cy="23" r="0.9" fill="#2A211C" opacity="0.042"/><circle cx="16" cy="37" r="0.8" fill="#2A211C" opacity="0.048"/></pattern>
@@ -41,13 +41,13 @@
   <text x="477" y="258" font-family="'Iowan Old Style', Charter, 'Palatino Linotype', Georgia, serif" font-size="52" font-weight="700" fill="#B4532A">R1</text>
   <text x="477" y="298" font-family="'Avenir Next', Avenir, 'Helvetica Neue', 'Segoe UI', Roboto, Arial, sans-serif" font-size="25" font-weight="700" fill="#2A211C">MVP Operacional</text>
   <text x="477" y="326" font-family="'Iowan Old Style', Charter, 'Palatino Linotype', Georgia, serif" font-size="19" font-style="italic" fill="#6F625A">serviço</text>
-  <rect x="650" y="222" width="120" height="30" rx="15" fill="#E6DAD0"/>
-  <text x="710.0" y="242" text-anchor="middle" font-family="'Avenir Next', Avenir, 'Helvetica Neue', 'Segoe UI', Roboto, Arial, sans-serif" font-size="13" font-weight="700" letter-spacing="1.5" fill="#6F625A">PLANEJADO</text>
+  <rect x="620" y="222" width="150" height="30" rx="15" fill="#F6EAD2"/>
+  <text x="695.0" y="242" text-anchor="middle" font-family="'Avenir Next', Avenir, 'Helvetica Neue', 'Segoe UI', Roboto, Arial, sans-serif" font-size="13" font-weight="700" letter-spacing="1.5" fill="#A86B12">EM ANDAMENTO</text>
   <path d="M477 348 H770" stroke="#E6DAD0" stroke-width="1.5"/>
   <circle cx="487" cy="378" r="8" fill="none" stroke="#6F625A" stroke-opacity=".6" stroke-width="2"/>
   <text x="507" y="384" font-family="'Avenir Next', Avenir, 'Helvetica Neue', 'Segoe UI', Roboto, Arial, sans-serif" font-size="18" font-weight="500" fill="#6F625A">mesa, cardápio e busca</text>
   <circle cx="487" cy="414" r="8" fill="none" stroke="#6F625A" stroke-opacity=".6" stroke-width="2"/>
-  <text x="507" y="420" font-family="'Avenir Next', Avenir, 'Helvetica Neue', 'Segoe UI', Roboto, Arial, sans-serif" font-size="18" font-weight="500" fill="#6F625A">carrinho, pedido e status</text>
+  <text x="507" y="420" font-family="'Avenir Next', Avenir, 'Helvetica Neue', 'Segoe UI', Roboto, Arial, sans-serif" font-size="18" font-weight="500" fill="#6F625A">pedido, fila e status do pedido</text>
   <circle cx="487" cy="450" r="8" fill="none" stroke="#6F625A" stroke-opacity=".6" stroke-width="2"/>
   <text x="507" y="456" font-family="'Avenir Next', Avenir, 'Helvetica Neue', 'Segoe UI', Roboto, Arial, sans-serif" font-size="18" font-weight="500" fill="#6F625A">fila e preparo no restaurante</text>
   <circle cx="487" cy="486" r="8" fill="none" stroke="#6F625A" stroke-opacity=".6" stroke-width="2"/>

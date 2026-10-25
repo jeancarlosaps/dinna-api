@@ -2,7 +2,7 @@
   <!-- Static companion generated from the animated version. -->
   <!-- Keep hero-still.svg aligned with this composition. -->
   <title id="title">dinna. api — Da mesa à operação.</title>
-  <desc id="desc">Ilustração conceitual da API do Dinna: o perfil cliente e o perfil restaurante do app Flutter conversam por REST com um único serviço Fastify. Dentro dele, o módulo health aparece como implementado; products, orders e recommendations aparecem tracejados, como planejados. Versão estática.</desc>
+  <desc id="desc">Ilustração conceitual da API do Dinna: os perfis cliente e restaurante conversam por REST com um serviço Fastify. Health e products estão implementados, orders está parcial com POST /orders, e recommendations segue planejado. Versão estática.</desc>
   <defs>
     <linearGradient id="bg" x1="0" y1="0" x2="1" y2="1">
       <stop stop-color="#211915"/><stop offset=".6" stop-color="#2C211B"/><stop offset="1" stop-color="#3A2B22"/>
@@ -39,8 +39,10 @@
     <text x="98" y="510" font-family="'Avenir Next', Avenir, 'Helvetica Neue', 'Segoe UI', Roboto, Arial, sans-serif" font-size="24" font-weight="500" fill="#CDBBAD">Produtos, pedidos e status em um monólito modular.</text>
     <circle cx="108" cy="592" r="8" fill="#A9BC9C"/>
     <text x="126" y="599" font-family="'Avenir Next', Avenir, 'Helvetica Neue', 'Segoe UI', Roboto, Arial, sans-serif" font-size="20" font-weight="500" fill="#CDBBAD">implementado</text>
-    <circle cx="282" cy="592" r="7" fill="none" stroke="#CDBBAD" stroke-width="2" stroke-dasharray="3 3"/>
-    <text x="300" y="599" font-family="'Avenir Next', Avenir, 'Helvetica Neue', 'Segoe UI', Roboto, Arial, sans-serif" font-size="20" font-weight="500" fill="#CDBBAD">planejado</text>
+    <circle cx="276" cy="592" r="7" fill="#A86B12"/>
+    <text x="294" y="599" font-family="'Avenir Next', Avenir, 'Helvetica Neue', 'Segoe UI', Roboto, Arial, sans-serif" font-size="20" font-weight="500" fill="#CDBBAD">parcial</text>
+    <circle cx="378" cy="592" r="7" fill="none" stroke="#CDBBAD" stroke-width="2" stroke-dasharray="3 3"/>
+    <text x="396" y="599" font-family="'Avenir Next', Avenir, 'Helvetica Neue', 'Segoe UI', Roboto, Arial, sans-serif" font-size="20" font-weight="500" fill="#CDBBAD">planejado</text>
   </g>
 
   <!-- cliente -->
@@ -80,16 +82,16 @@
         <text x="1252" y="270" text-anchor="end" font-family="'Avenir Next', Avenir, 'Helvetica Neue', 'Segoe UI', Roboto, Arial, sans-serif" font-size="17" font-weight="700" fill="#5E7355">R0</text>
       </g>
       <g class="a-r2">
-        <rect x="1033" y="307" width="234" height="52" rx="13" fill="none" stroke="#6F625A" stroke-opacity=".45" stroke-width="1.6" stroke-dasharray="6 5"/>
-        <circle cx="1056" cy="333" r="7" fill="none" stroke="#6F625A" stroke-width="2"/>
-        <text x="1074" y="340" font-family="'Avenir Next', Avenir, 'Helvetica Neue', 'Segoe UI', Roboto, Arial, sans-serif" font-size="18" font-weight="500" fill="#6F625A">products</text>
-        <text x="1252" y="340" text-anchor="end" font-family="'Avenir Next', Avenir, 'Helvetica Neue', 'Segoe UI', Roboto, Arial, sans-serif" font-size="17" font-weight="600" fill="#6F625A">R1</text>
+        <rect x="1033" y="307" width="234" height="52" rx="13" fill="#E6ECE1"/>
+        <circle cx="1056" cy="333" r="7" fill="#5E7355"/>
+        <text x="1074" y="340" font-family="'Avenir Next', Avenir, 'Helvetica Neue', 'Segoe UI', Roboto, Arial, sans-serif" font-size="18" font-weight="700" fill="#2A211C">products</text>
+        <text x="1252" y="340" text-anchor="end" font-family="'Avenir Next', Avenir, 'Helvetica Neue', 'Segoe UI', Roboto, Arial, sans-serif" font-size="15" font-weight="700" fill="#5E7355">CRUD</text>
       </g>
       <g class="a-r3">
-        <rect x="1033" y="377" width="234" height="52" rx="13" fill="none" stroke="#6F625A" stroke-opacity=".45" stroke-width="1.6" stroke-dasharray="6 5"/>
-        <circle cx="1056" cy="403" r="7" fill="none" stroke="#6F625A" stroke-width="2"/>
-        <text x="1074" y="410" font-family="'Avenir Next', Avenir, 'Helvetica Neue', 'Segoe UI', Roboto, Arial, sans-serif" font-size="18" font-weight="500" fill="#6F625A">orders</text>
-        <text x="1252" y="410" text-anchor="end" font-family="'Avenir Next', Avenir, 'Helvetica Neue', 'Segoe UI', Roboto, Arial, sans-serif" font-size="17" font-weight="600" fill="#6F625A">R1</text>
+        <rect x="1033" y="377" width="234" height="52" rx="13" fill="#F6EAD2"/>
+        <circle cx="1056" cy="403" r="7" fill="#A86B12"/>
+        <text x="1074" y="410" font-family="'Avenir Next', Avenir, 'Helvetica Neue', 'Segoe UI', Roboto, Arial, sans-serif" font-size="18" font-weight="700" fill="#2A211C">orders</text>
+        <text x="1252" y="410" text-anchor="end" font-family="'Avenir Next', Avenir, 'Helvetica Neue', 'Segoe UI', Roboto, Arial, sans-serif" font-size="15" font-weight="700" fill="#A86B12">POST</text>
       </g>
       <g class="a-r4">
         <rect x="1033" y="447" width="234" height="52" rx="13" fill="none" stroke="#6F625A" stroke-opacity=".45" stroke-width="1.6" stroke-dasharray="6 5"/>

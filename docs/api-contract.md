@@ -142,7 +142,7 @@ Qualquer outro salto ou regressão → `409 INVALID_STATUS_TRANSITION`.
 | `PUT`    | `/products/:id`      | R0/R1   | **Implementado**      | Restaurante                              |
 | `DELETE` | `/products/:id`      | R0/R1   | **Implementado**      | Restaurante (soft-delete)                |
 | `GET`    | `/orders`            | R1      | Contrato              | Restaurante (fila)                       |
-| `POST`   | `/orders`            | R1      | Contrato              | Cliente (mesa)                           |
+| `POST`   | `/orders`            | R1      | **Implementado**      | Cliente (mesa)                           |
 | `PATCH`  | `/orders/:id/status` | R1      | Contrato              | Restaurante                              |
 | `POST`   | `/ai/recommendation` | R2      | Contrato (Fora do R1) | Cliente                                  |
 
@@ -269,6 +269,24 @@ Cria pedido a partir da mesa. Status inicial sempre `received`.
 **201 Created** — `Order` completo.  
 **400** — `VALIDATION_ERROR` (body inválido; lista vazia; `quantity` &lt; 1).  
 **404** — `PRODUCT_NOT_FOUND` se algum `productId` não existir **ou** estiver `available: false`.
+
+A gravação do pedido e de seus itens é atômica: se qualquer produto estiver ausente ou indisponível, nenhuma parte do pedido é persistida.
+
+Exemplo de resposta:
+
+```json
+{
+  "id": "o_550e8400-e29b-41d4-a716-446655440000",
+  "table": "12",
+  "status": "received",
+  "items": [
+    { "productId": "p1", "quantity": 2, "note": "sem cebola" },
+    { "productId": "p2", "quantity": 1 }
+  ],
+  "totalCents": 10470,
+  "createdAt": "2026-10-25T18:00:00.000Z"
+}
+```
 
 ---
 
