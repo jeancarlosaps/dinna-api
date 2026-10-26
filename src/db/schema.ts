@@ -1,4 +1,4 @@
-/** Schema mínimo R0/R1: products (+ orders preparado para o módulo futuro). */
+/** Schema mínimo R0/R1: products e orders. */
 export const SCHEMA_SQL = `
 CREATE TABLE IF NOT EXISTS products (
   id TEXT PRIMARY KEY NOT NULL,
