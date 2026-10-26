@@ -1,11 +1,29 @@
 import { randomUUID } from 'node:crypto';
 import type { Db } from '../../db/client.js';
-import type { CreateOrderInput, Order, OrderItem } from '../../db/types.js';
+import type {
+  CreateOrderInput,
+  Order,
+  OrderItem,
+  OrderListQuery,
+  OrderStatus,
+} from '../../db/types.js';
 import { AppError } from '../../shared/errors/app-error.js';
 
 interface ProductPriceRow {
   price_cents: number;
   available: number;
+}
+
+interface OrderWithItemRow {
+  id: string;
+  table_label: string;
+  status: OrderStatus;
+  total_cents: number;
+  created_at: string;
+  item_id: number | null;
+  product_id: string | null;
+  quantity: number | null;
+  note: string | null;
 }
 
 function newOrderId(): string {
@@ -79,4 +97,67 @@ export function createOrder(db: Db, input: CreateOrderInput): Order {
     db.exec('ROLLBACK');
     throw error;
   }
+}
+
+/** Lista pedidos com seus itens, na ordem estável da fila (mais antigo primeiro). */
+export function listOrders(db: Db, query: OrderListQuery = {}): Order[] {
+  const conditions: string[] = [];
+  const parameters: string[] = [];
+
+  if (query.status !== undefined) {
+    conditions.push('o.status = ?');
+    parameters.push(query.status);
+  }
+
+  if (query.table !== undefined) {
+    conditions.push('o.table_label = ?');
+    parameters.push(query.table);
+  }
+
+  const whereClause = conditions.length > 0 ? `WHERE ${conditions.join(' AND ')}` : '';
+  const rows = db
+    .prepare(
+      `SELECT
+         o.id,
+         o.table_label,
+         o.status,
+         o.total_cents,
+         o.created_at,
+         oi.id AS item_id,
+         oi.product_id,
+         oi.quantity,
+         oi.note
+       FROM orders AS o
+       LEFT JOIN order_items AS oi ON oi.order_id = o.id
+       ${whereClause}
+       ORDER BY o.created_at ASC, o.id ASC, oi.id ASC`,
+    )
+    .all(...parameters) as unknown as OrderWithItemRow[];
+
+  const orders: Order[] = [];
+  let currentOrder: Order | undefined;
+
+  for (const row of rows) {
+    if (currentOrder?.id !== row.id) {
+      currentOrder = {
+        id: row.id,
+        table: row.table_label,
+        status: row.status,
+        items: [],
+        totalCents: row.total_cents,
+        createdAt: row.created_at,
+      };
+      orders.push(currentOrder);
+    }
+
+    if (row.item_id !== null && row.product_id !== null && row.quantity !== null) {
+      const item: OrderItem = { productId: row.product_id, quantity: row.quantity };
+      if (row.note !== null) {
+        item.note = row.note;
+      }
+      currentOrder.items.push(item);
+    }
+  }
+
+  return orders;
 }

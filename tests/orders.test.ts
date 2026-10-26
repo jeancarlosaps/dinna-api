@@ -2,7 +2,7 @@ import { afterEach, describe, expect, it } from 'vitest';
 import type { FastifyInstance } from 'fastify';
 import { buildApp } from '../src/app.js';
 import { openDatabase } from '../src/db/client.js';
-import { createOrder } from '../src/modules/orders/orders.repository.js';
+import { createOrder, listOrders } from '../src/modules/orders/orders.repository.js';
 import { AppError } from '../src/shared/errors/app-error.js';
 
 describe('orders', () => {
@@ -12,6 +12,48 @@ describe('orders', () => {
     const openedApp = app;
     app = undefined;
     await openedApp?.close();
+  });
+
+  it('GET /orders lista pedidos, inclui itens e filtra por status e mesa', async () => {
+    const currentApp = buildApp();
+    app = currentApp;
+
+    const firstOrder = await currentApp.inject({
+      method: 'POST',
+      url: '/orders',
+      payload: { table: '12', items: [{ productId: 'p1', quantity: 2, note: 'sem cebola' }] },
+    });
+    const secondOrder = await currentApp.inject({
+      method: 'POST',
+      url: '/orders',
+      payload: { table: '8', items: [{ productId: 'p2', quantity: 1 }] },
+    });
+    expect(firstOrder.statusCode).toBe(201);
+    expect(secondOrder.statusCode).toBe(201);
+
+    const filtered = await currentApp.inject({
+      method: 'GET',
+      url: '/orders?status=received&table=12',
+    });
+    expect(filtered.statusCode).toBe(200);
+    expect(filtered.json()).toEqual([
+      {
+        id: firstOrder.json().id,
+        table: '12',
+        status: 'received',
+        items: [{ productId: 'p1', quantity: 2, note: 'sem cebola' }],
+        totalCents: 6580,
+        createdAt: firstOrder.json().createdAt,
+      },
+    ]);
+
+    const noMatches = await currentApp.inject({ method: 'GET', url: '/orders?table=missing' });
+    expect(noMatches.statusCode).toBe(200);
+    expect(noMatches.json()).toEqual([]);
+
+    const invalidStatus = await currentApp.inject({ method: 'GET', url: '/orders?status=unknown' });
+    expect(invalidStatus.statusCode).toBe(400);
+    expect(invalidStatus.json()).toMatchObject({ error: { code: 'VALIDATION_ERROR' } });
   });
 
   it('POST /orders cria pedido, calcula o total e inicia em received', async () => {
@@ -125,6 +167,42 @@ describe('orders', () => {
         count: number;
       };
       expect(orderCount.count).toBe(0);
+    } finally {
+      db.close();
+    }
+  });
+
+  it('listOrders ordena a fila e filtra sem perder itens ou observações', () => {
+    const db = openDatabase({ path: ':memory:' });
+
+    try {
+      const newerOrder = createOrder(db, {
+        table: '8',
+        items: [{ productId: 'p2', quantity: 1 }],
+      });
+      const olderOrder = createOrder(db, {
+        table: '12',
+        items: [{ productId: 'p1', quantity: 2, note: 'sem cebola' }],
+      });
+
+      db.prepare('UPDATE orders SET created_at = ? WHERE id = ?').run(
+        '2026-10-25T10:02:00.000Z',
+        newerOrder.id,
+      );
+      db.prepare('UPDATE orders SET created_at = ?, status = ? WHERE id = ?').run(
+        '2026-10-25T10:01:00.000Z',
+        'preparing',
+        olderOrder.id,
+      );
+
+      expect(listOrders(db)).toEqual([
+        { ...olderOrder, status: 'preparing', createdAt: '2026-10-25T10:01:00.000Z' },
+        { ...newerOrder, createdAt: '2026-10-25T10:02:00.000Z' },
+      ]);
+      expect(listOrders(db, { status: 'preparing', table: '12' })).toEqual([
+        { ...olderOrder, status: 'preparing', createdAt: '2026-10-25T10:01:00.000Z' },
+      ]);
+      expect(listOrders(db, { table: 'missing' })).toEqual([]);
     } finally {
       db.close();
     }

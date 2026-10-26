@@ -1,7 +1,7 @@
 import type { FastifyInstance, FastifyPluginAsync } from 'fastify';
 import type { Db } from '../../db/client.js';
-import type { CreateOrderInput } from '../../db/types.js';
-import { createOrder } from './orders.repository.js';
+import type { CreateOrderInput, OrderListQuery } from '../../db/types.js';
+import { createOrder, listOrders } from './orders.repository.js';
 
 const orderItemSchema = {
   type: 'object',
@@ -30,6 +30,26 @@ const orderResponseSchema = {
 
 export function ordersRoutes(db: Db): FastifyPluginAsync {
   return async function registerOrders(app: FastifyInstance): Promise<void> {
+    app.get<{ Querystring: OrderListQuery }>(
+      '/orders',
+      {
+        schema: {
+          querystring: {
+            type: 'object',
+            additionalProperties: false,
+            properties: {
+              status: { type: 'string', enum: ['received', 'preparing', 'ready', 'finished'] },
+              table: { type: 'string', minLength: 1 },
+            },
+          },
+          response: {
+            200: { type: 'array', items: orderResponseSchema },
+          },
+        },
+      },
+      async (request) => listOrders(db, request.query),
+    );
+
     app.post<{ Body: CreateOrderInput }>(
       '/orders',
       {
