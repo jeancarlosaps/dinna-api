@@ -246,6 +246,9 @@ Lista pedidos da fila. Sem paginação no MVP.
 | `table`  | `string` | não         | —       | Filtra pela mesa              |
 
 **200 OK** — array de `Order`, ordenado por `createdAt` ascendente (mais antigo primeiro — fila).
+Cada item contém `id`, `table`, `status`, `items`, `totalCents` e `createdAt`. Cada elemento de `items` contém `productId`, `quantity` e, quando informado, `note`.
+
+`status` aceita somente `received`, `preparing`, `ready` ou `finished`; `table` é comparada exatamente. Os filtros podem ser combinados. Consultas sem resultados retornam `[]`; parâmetros inválidos retornam **400 `VALIDATION_ERROR`**.
 
 ---
 

@@ -3,7 +3,7 @@
 <p align="center">
   <picture>
     <source media="(prefers-reduced-motion: reduce)" srcset="docs/assets/readme/hero-still.svg" />
-    <img src="docs/assets/readme/hero.svg" alt="dinna. api — Da mesa à operação. Um serviço Fastify atende os perfis cliente e restaurante. Health e CRUD de produtos estão implementados, POST /orders está implementado parcialmente no módulo de pedidos, e a consulta e atualização de pedidos e recomendações seguem planejadas." width="1600" />
+    <img src="docs/assets/readme/hero.svg" alt="dinna. api — Da mesa à operação. Um serviço Fastify atende os perfis cliente e restaurante. Health e CRUD de produtos estão implementados, criação e consulta de pedidos fazem parte do módulo de pedidos, e atualização de status e recomendações seguem planejadas." width="1600" />
   </picture>
 </p>
 
@@ -65,7 +65,7 @@ O Dinna é um app de pedidos feitos **dentro do restaurante** (não é delivery)
 
 ## 01 · Estado atual
 
-Fundação (R0) **em andamento**. Health, SQLite, seed de cardápio e CRUD de `/products` estão prontos. O módulo de pedidos começou com `POST /orders`; consulta e atualização de status seguem no contrato.
+Fundação (R0) **em andamento**. Health, SQLite, seed de cardápio e CRUD de `/products` estão prontos. O módulo de pedidos permite criar e consultar a fila em `POST /orders` e `GET /orders`; atualização de status segue no contrato.
 
 | Item                                                                 | Situação                                       |
 | -------------------------------------------------------------------- | ---------------------------------------------- |
@@ -74,11 +74,12 @@ Fundação (R0) **em andamento**. Health, SQLite, seed de cardápio e CRUD de `/
 | Formato único de erro (400 / 404 / `AppError` / 500)                 | ✅ Implementado e testado                      |
 | Validação de entrada com JSON Schema nativo do Fastify               | ✅ Em uso nas rotas de produtos                |
 | Variáveis de ambiente (`HOST`, `PORT`, `LOG_LEVEL`, `DATABASE_PATH`) | ✅ Implementado e testado                      |
-| Lint, format, typecheck, testes, build, CI                           | ✅ 21 testes · GitHub Actions                  |
+| Lint, format, typecheck, testes, build, CI                           | ✅ 23 testes · GitHub Actions                  |
 | `/products` (CRUD + filtros)                                         | ✅ Implementado e testado (SCRUM-25)           |
 | Persistência SQLite (`node:sqlite`) + seed                           | ✅ Implementado                                |
 | `POST /orders`                                                       | ✅ Implementado e testado (SCRUM-45)           |
-| `GET /orders`, `PATCH /orders/:id/status`                            | ⬜ Contrato R1, [aceito](docs/api-contract.md) |
+| `GET /orders`                                                        | ✅ Implementado e testado (SCRUM-47)           |
+| `PATCH /orders/:id/status`                                           | ⬜ Contrato R1, [aceito](docs/api-contract.md) |
 | `/ai/recommendation`                                                 | ⬜ Planejado (R2)                              |
 | Autenticação                                                         | ⬜ Fora do escopo atual                        |
 
@@ -131,7 +132,7 @@ flowchart LR
 | [`src/shared/http/error-handler.ts`](src/shared/http/error-handler.ts)               | Formato único de erro e handler de 404                                              |
 | [`src/modules/health/health.routes.ts`](src/modules/health/health.routes.ts)         | `GET /health`                                                                       |
 | [`src/modules/products/products.routes.ts`](src/modules/products/products.routes.ts) | CRUD `/products`                                                                    |
-| [`src/modules/orders/orders.routes.ts`](src/modules/orders/orders.routes.ts)         | Criação de pedidos (`POST /orders`)                                                 |
+| [`src/modules/orders/orders.routes.ts`](src/modules/orders/orders.routes.ts)         | Criação e consulta de pedidos (`POST` e `GET /orders`)                              |
 
 ### Estrutura real
 
@@ -242,7 +243,7 @@ curl http://localhost:3333/nao-existe
 ## 05 · Contratos REST
 
 <p align="center">
-  <img src="docs/assets/readme/flow.svg" alt="Ciclo do pedido no contrato aceito: POST /orders cria o pedido como recebido; PATCH /orders/:id/status avança para preparando, pronto e finalizado; GET /orders lista a fila do restaurante. Ainda não implementado no código." width="1600" loading="lazy" />
+  <img src="docs/assets/readme/flow.svg" alt="Ciclo do pedido: POST /orders cria o pedido como recebido; GET /orders lista a fila do restaurante; PATCH /orders/:id/status avança para preparando, pronto e finalizado." width="1600" loading="lazy" />
 </p>
 
 | Método   | Rota                 | Release | Situação         |
@@ -253,7 +254,7 @@ curl http://localhost:3333/nao-existe
 | `POST`   | `/products`          | R0/R1   | **Implementado** |
 | `PUT`    | `/products/:id`      | R0/R1   | **Implementado** |
 | `DELETE` | `/products/:id`      | R0/R1   | **Implementado** |
-| `GET`    | `/orders`            | R1      | Planejado        |
+| `GET`    | `/orders`            | R1      | **Implementado** |
 | `POST`   | `/orders`            | R1      | **Implementado** |
 | `PATCH`  | `/orders/:id/status` | R1      | Planejado        |
 | `POST`   | `/ai/recommendation` | R2      | Planejado        |
@@ -301,15 +302,15 @@ Todas as respostas de erro usam o mesmo formato:
 | `npm run format:check` | Prettier, só verificando           |
 | `npm run build`        | Compila para `dist/`               |
 
-O que os 21 testes cobrem:
+O que os 23 testes cobrem:
 
-| Arquivo                       | Cobre                                                                                            |
-| ----------------------------- | ------------------------------------------------------------------------------------------------ |
-| `tests/health.test.ts`        | `GET /health` responde 200 com `{ "status": "ok" }`                                              |
-| `tests/error-handler.test.ts` | 404 padronizado, 400 de validação, `AppError` e 500 sem vazar o detalhe                          |
-| `tests/env.test.ts`           | Valores padrão e rejeição de `PORT`, `LOG_LEVEL` e `DATABASE_PATH`                               |
-| `tests/products.test.ts`      | Listagem/filtros, detalhe, create, update, soft-delete e erros                                   |
-| `tests/orders.test.ts`        | Criação, validação de valores monetários, produtos indisponíveis e rollback após falha de insert |
+| Arquivo                       | Cobre                                                                                       |
+| ----------------------------- | ------------------------------------------------------------------------------------------- |
+| `tests/health.test.ts`        | `GET /health` responde 200 com `{ "status": "ok" }`                                         |
+| `tests/error-handler.test.ts` | 404 padronizado, 400 de validação, `AppError` e 500 sem vazar o detalhe                     |
+| `tests/env.test.ts`           | Valores padrão e rejeição de `PORT`, `LOG_LEVEL` e `DATABASE_PATH`                          |
+| `tests/products.test.ts`      | Listagem/filtros, detalhe, create, update, soft-delete e erros                              |
+| `tests/orders.test.ts`        | Criação e consulta da fila, filtros, validação monetária, produtos indisponíveis e rollback |
 
 ## 08 · CI
 
@@ -341,13 +342,14 @@ Hoje o app chama `GET /health` na tela inicial (**“Verificar conexão com a AP
   <img src="docs/assets/readme/roadmap.svg" alt="Roadmap. R0 Fundação, em andamento: app Flutter com MVVM base, API Fastify com /health, CI, contrato, SQLite e /products. Pedidos no R1. R1 MVP Operacional, planejado. R2 Dinna, Me ajuda a escolher, planejado. R3 Evoluções, icebox." width="1600" loading="lazy" />
 </p>
 
-Issues de API acompanhadas neste repositório. **Jira** foi consultado em 25/10/2026; **Código** reflete esta branch.
+Issues de API acompanhadas neste repositório. **Jira** foi consultado em 26/10/2026; **Código** reflete esta branch.
 
-| Issue    | Task                                   | Jira         | Código                                                     |
-| -------- | -------------------------------------- | ------------ | ---------------------------------------------------------- |
-| SCRUM-24 | Definir o contrato inicial da API REST | Concluído    | Contrato aceito em `docs/api-contract.md`                  |
-| SCRUM-25 | Preparar backend/mock da API           | Concluído    | SQLite + seed + CRUD `/products`; schema de pedidos        |
-| SCRUM-45 | Criar pedido (`POST /orders`)          | Em andamento | Rota com validação, total calculado e persistência atômica |
+| Issue    | Task                                   | Jira         | Código                                                       |
+| -------- | -------------------------------------- | ------------ | ------------------------------------------------------------ |
+| SCRUM-24 | Definir o contrato inicial da API REST | Concluído    | Contrato aceito em `docs/api-contract.md`                    |
+| SCRUM-25 | Preparar backend/mock da API           | Concluído    | SQLite + seed + CRUD `/products`; schema de pedidos          |
+| SCRUM-45 | Criar pedido (`POST /orders`)          | Concluído    | Rota com validação, total calculado e persistência atômica   |
+| SCRUM-47 | Consultar pedidos (`GET /orders`)      | Em andamento | Filtros por status e mesa, fila crescente e itens associados |
 
 ## 11 · Como contribuir
 
@@ -371,7 +373,7 @@ Os focos vêm da distribuição de issues no backlog (Atividade 2) e não são c
 
 ## 13 · Próximos passos
 
-1. **R1:** completar o módulo `orders` com `GET /orders` e `PATCH /orders/:id/status` sobre o schema existente.
+1. **R1:** completar o módulo `orders` com `PATCH /orders/:id/status` sobre o schema existente.
 2. **R2:** implementar `POST /ai/recommendation` conforme o contrato.
 3. Sincronizar o `roadmap.svg` no [dinna-flutter](https://github.com/jeancarlosaps/dinna-flutter) se o status R0 mudar lá também.
 

@@ -26,6 +26,11 @@ export interface ProductListQuery {
 
 export type OrderStatus = 'received' | 'preparing' | 'ready' | 'finished';
 
+export interface OrderListQuery {
+  status?: OrderStatus;
+  table?: string;
+}
+
 export interface OrderItem {
   productId: string;
   quantity: number;
