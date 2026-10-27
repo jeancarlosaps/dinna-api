@@ -143,7 +143,7 @@ Qualquer outro salto ou regressão → `409 INVALID_STATUS_TRANSITION`.
 | `DELETE` | `/products/:id`      | R0/R1   | **Implementado**      | Restaurante (soft-delete)                |
 | `GET`    | `/orders`            | R1      | Contrato              | Restaurante (fila)                       |
 | `POST`   | `/orders`            | R1      | **Implementado**      | Cliente (mesa)                           |
-| `PATCH`  | `/orders/:id/status` | R1      | Contrato              | Restaurante                              |
+| `PATCH`  | `/orders/:id/status` | R1      | **Implementado**      | Restaurante                              |
 | `POST`   | `/ai/recommendation` | R2      | Contrato (Fora do R1) | Cliente                                  |
 
 ---
@@ -308,6 +308,8 @@ Avança o status em **um passo** conforme a tabela de transições.
 **404** — `ORDER_NOT_FOUND`.  
 **409** — `INVALID_STATUS_TRANSITION`.  
 **400** — `VALIDATION_ERROR` (status fora do enum).
+
+A transição pode avançar somente um passo: `received` → `preparing` → `ready` → `finished`. Regressões e saltos de etapa retornam `409` e não alteram o pedido.
 
 ---
 

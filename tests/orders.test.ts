@@ -2,7 +2,11 @@ import { afterEach, describe, expect, it } from 'vitest';
 import type { FastifyInstance } from 'fastify';
 import { buildApp } from '../src/app.js';
 import { openDatabase } from '../src/db/client.js';
-import { createOrder, listOrders } from '../src/modules/orders/orders.repository.js';
+import {
+  createOrder,
+  listOrders,
+  updateOrderStatus,
+} from '../src/modules/orders/orders.repository.js';
 import { AppError } from '../src/shared/errors/app-error.js';
 
 describe('orders', () => {
@@ -54,6 +58,81 @@ describe('orders', () => {
     const invalidStatus = await currentApp.inject({ method: 'GET', url: '/orders?status=unknown' });
     expect(invalidStatus.statusCode).toBe(400);
     expect(invalidStatus.json()).toMatchObject({ error: { code: 'VALIDATION_ERROR' } });
+  });
+
+  it('PATCH /orders/:id/status avança o pedido um passo por vez e retorna os itens', async () => {
+    const currentApp = buildApp();
+    app = currentApp;
+
+    const created = await currentApp.inject({
+      method: 'POST',
+      url: '/orders',
+      payload: { table: '12', items: [{ productId: 'p1', quantity: 1, note: 'sem cebola' }] },
+    });
+
+    for (const status of ['preparing', 'ready', 'finished'] as const) {
+      const response = await currentApp.inject({
+        method: 'PATCH',
+        url: `/orders/${created.json().id}/status`,
+        payload: { status },
+      });
+      expect(response.statusCode).toBe(200);
+      expect(response.json()).toMatchObject({
+        id: created.json().id,
+        table: '12',
+        status,
+        items: [{ productId: 'p1', quantity: 1, note: 'sem cebola' }],
+      });
+    }
+
+    const regression = await currentApp.inject({
+      method: 'PATCH',
+      url: `/orders/${created.json().id}/status`,
+      payload: { status: 'ready' },
+    });
+    expect(regression.statusCode).toBe(409);
+    expect(regression.json()).toMatchObject({
+      error: { code: 'INVALID_STATUS_TRANSITION' },
+    });
+  });
+
+  it('PATCH /orders/:id/status rejeita enum inválido, salto de etapa e pedido inexistente', async () => {
+    const currentApp = buildApp();
+    app = currentApp;
+
+    const created = await currentApp.inject({
+      method: 'POST',
+      url: '/orders',
+      payload: { table: '12', items: [{ productId: 'p1', quantity: 1 }] },
+    });
+
+    const invalidStatus = await currentApp.inject({
+      method: 'PATCH',
+      url: `/orders/${created.json().id}/status`,
+      payload: { status: 'cancelled' },
+    });
+    expect(invalidStatus.statusCode).toBe(400);
+    expect(invalidStatus.json()).toMatchObject({ error: { code: 'VALIDATION_ERROR' } });
+
+    const skippedStatus = await currentApp.inject({
+      method: 'PATCH',
+      url: `/orders/${created.json().id}/status`,
+      payload: { status: 'ready' },
+    });
+    expect(skippedStatus.statusCode).toBe(409);
+    expect(skippedStatus.json()).toMatchObject({ error: { code: 'INVALID_STATUS_TRANSITION' } });
+
+    const missingOrder = await currentApp.inject({
+      method: 'PATCH',
+      url: '/orders/o_missing/status',
+      payload: { status: 'preparing' },
+    });
+    expect(missingOrder.statusCode).toBe(404);
+    expect(missingOrder.json()).toMatchObject({ error: { code: 'ORDER_NOT_FOUND' } });
+
+    const unchanged = await currentApp.inject({ method: 'GET', url: '/orders' });
+    expect(unchanged.json()).toHaveLength(1);
+    expect(unchanged.json()).toMatchObject([{ status: 'received' }]);
   });
 
   it('POST /orders cria pedido, calcula o total e inicia em received', async () => {
@@ -203,6 +282,24 @@ describe('orders', () => {
         { ...olderOrder, status: 'preparing', createdAt: '2026-10-25T10:01:00.000Z' },
       ]);
       expect(listOrders(db, { table: 'missing' })).toEqual([]);
+    } finally {
+      db.close();
+    }
+  });
+
+  it('updateOrderStatus rejeita saltos sem alterar o status persistido', () => {
+    const db = openDatabase({ path: ':memory:' });
+
+    try {
+      const order = createOrder(db, {
+        table: '12',
+        items: [{ productId: 'p1', quantity: 1 }],
+      });
+
+      expect(() => updateOrderStatus(db, order.id, { status: 'ready' })).toThrowError(
+        expect.objectContaining({ code: 'INVALID_STATUS_TRANSITION' } satisfies Partial<AppError>),
+      );
+      expect(listOrders(db)).toMatchObject([{ status: 'received' }]);
     } finally {
       db.close();
     }

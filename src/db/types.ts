@@ -31,6 +31,10 @@ export interface OrderListQuery {
   table?: string;
 }
 
+export interface UpdateOrderStatusInput {
+  status: OrderStatus;
+}
+
 export interface OrderItem {
   productId: string;
   quantity: number;
