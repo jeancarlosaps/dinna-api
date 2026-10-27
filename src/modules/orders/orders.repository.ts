@@ -6,6 +6,7 @@ import type {
   OrderItem,
   OrderListQuery,
   OrderStatus,
+  UpdateOrderStatusInput,
 } from '../../db/types.js';
 import { AppError } from '../../shared/errors/app-error.js';
 
@@ -24,6 +25,63 @@ interface OrderWithItemRow {
   product_id: string | null;
   quantity: number | null;
   note: string | null;
+}
+
+const NEXT_ORDER_STATUS: Record<OrderStatus, OrderStatus | null> = {
+  received: 'preparing',
+  preparing: 'ready',
+  ready: 'finished',
+  finished: null,
+};
+
+const ORDER_WITH_ITEMS_SELECT = `
+  SELECT
+    o.id,
+    o.table_label,
+    o.status,
+    o.total_cents,
+    o.created_at,
+    oi.id AS item_id,
+    oi.product_id,
+    oi.quantity,
+    oi.note
+  FROM orders AS o
+  LEFT JOIN order_items AS oi ON oi.order_id = o.id`;
+
+function mapOrderRows(rows: OrderWithItemRow[]): Order[] {
+  const orders: Order[] = [];
+  let currentOrder: Order | undefined;
+
+  for (const row of rows) {
+    if (currentOrder?.id !== row.id) {
+      currentOrder = {
+        id: row.id,
+        table: row.table_label,
+        status: row.status,
+        items: [],
+        totalCents: row.total_cents,
+        createdAt: row.created_at,
+      };
+      orders.push(currentOrder);
+    }
+
+    if (row.item_id !== null && row.product_id !== null && row.quantity !== null) {
+      const item: OrderItem = { productId: row.product_id, quantity: row.quantity };
+      if (row.note !== null) {
+        item.note = row.note;
+      }
+      currentOrder.items.push(item);
+    }
+  }
+
+  return orders;
+}
+
+function findOrderById(db: Db, id: string): Order | undefined {
+  const rows = db
+    .prepare(`${ORDER_WITH_ITEMS_SELECT} WHERE o.id = ? ORDER BY oi.id ASC`)
+    .all(id) as unknown as OrderWithItemRow[];
+  return mapOrderRows(rows)[0];
 }
 
 function newOrderId(): string {
@@ -117,47 +175,45 @@ export function listOrders(db: Db, query: OrderListQuery = {}): Order[] {
   const whereClause = conditions.length > 0 ? `WHERE ${conditions.join(' AND ')}` : '';
   const rows = db
     .prepare(
-      `SELECT
-         o.id,
-         o.table_label,
-         o.status,
-         o.total_cents,
-         o.created_at,
-         oi.id AS item_id,
-         oi.product_id,
-         oi.quantity,
-         oi.note
-       FROM orders AS o
-       LEFT JOIN order_items AS oi ON oi.order_id = o.id
+      `${ORDER_WITH_ITEMS_SELECT}
        ${whereClause}
        ORDER BY o.created_at ASC, o.id ASC, oi.id ASC`,
     )
     .all(...parameters) as unknown as OrderWithItemRow[];
 
-  const orders: Order[] = [];
-  let currentOrder: Order | undefined;
+  return mapOrderRows(rows);
+}
 
-  for (const row of rows) {
-    if (currentOrder?.id !== row.id) {
-      currentOrder = {
-        id: row.id,
-        table: row.table_label,
-        status: row.status,
-        items: [],
-        totalCents: row.total_cents,
-        createdAt: row.created_at,
-      };
-      orders.push(currentOrder);
+/** Avança o status exatamente um passo e retorna o pedido atualizado. */
+export function updateOrderStatus(db: Db, id: string, input: UpdateOrderStatusInput): Order {
+  db.exec('BEGIN IMMEDIATE');
+
+  try {
+    const order = findOrderById(db, id);
+    if (!order) {
+      throw new AppError(404, 'ORDER_NOT_FOUND', `Pedido ${id} não encontrado`);
     }
 
-    if (row.item_id !== null && row.product_id !== null && row.quantity !== null) {
-      const item: OrderItem = { productId: row.product_id, quantity: row.quantity };
-      if (row.note !== null) {
-        item.note = row.note;
-      }
-      currentOrder.items.push(item);
+    if (NEXT_ORDER_STATUS[order.status] !== input.status) {
+      throw new AppError(
+        409,
+        'INVALID_STATUS_TRANSITION',
+        `Não é permitido avançar o pedido de ${order.status} para ${input.status}`,
+      );
     }
+
+    const result = db
+      .prepare('UPDATE orders SET status = ? WHERE id = ? AND status = ?')
+      .run(input.status, id, order.status);
+    if (Number(result.changes) !== 1) {
+      throw new AppError(409, 'INVALID_STATUS_TRANSITION', 'O status do pedido foi alterado');
+    }
+
+    order.status = input.status;
+    db.exec('COMMIT');
+    return order;
+  } catch (error) {
+    db.exec('ROLLBACK');
+    throw error;
   }
-
-  return orders;
 }
