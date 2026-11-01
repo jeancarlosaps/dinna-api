@@ -74,7 +74,7 @@ Fundação (R0) **em andamento**. Health, SQLite, seed de cardápio e CRUD de `/
 | Formato único de erro (400 / 404 / `AppError` / 500)                 | ✅ Implementado e testado            |
 | Validação de entrada com JSON Schema nativo do Fastify               | ✅ Em uso nas rotas de produtos      |
 | Variáveis de ambiente (`HOST`, `PORT`, `LOG_LEVEL`, `DATABASE_PATH`) | ✅ Implementado e testado            |
-| Lint, format, typecheck, testes, build, CI                           | ✅ 40 testes · GitHub Actions        |
+| Lint, format, typecheck, testes, build, CI                           | ✅ 41 testes · GitHub Actions        |
 | `/products` (CRUD + filtros)                                         | ✅ Implementado e testado (SCRUM-25) |
 | Persistência SQLite (`node:sqlite`) + seed                           | ✅ Implementado                      |
 | `POST /orders`                                                       | ✅ Implementado (SCRUM-45, SCRUM-89) |

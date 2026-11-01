@@ -140,6 +140,28 @@ describe('POST /orders idempotência', () => {
     expect(listed.json()).toHaveLength(1);
   });
 
+  it('repete o corpo da criação depois que o status do pedido avança', async () => {
+    const currentApp = buildApp();
+    app = currentApp;
+    const idempotencyKey = randomUUID();
+
+    const created = await postOrder(currentApp, orderPayload, idempotencyKey);
+    const advanced = await currentApp.inject({
+      method: 'PATCH',
+      url: `/orders/${created.json().id}/status`,
+      payload: { status: 'preparing' },
+    });
+    expect(advanced.statusCode).toBe(200);
+    expect(advanced.json()).toMatchObject({ id: created.json().id, status: 'preparing' });
+
+    const replay = await postOrder(currentApp, orderPayload, idempotencyKey);
+    expect(replay.statusCode).toBe(201);
+    expect(replay.json()).toEqual(created.json());
+
+    const listed = await currentApp.inject({ method: 'GET', url: '/orders' });
+    expect(listed.json()).toMatchObject([{ id: created.json().id, status: 'preparing' }]);
+  });
+
   it('retorna 409 quando a mesma chave chega com payload diferente', async () => {
     const currentApp = buildApp();
     app = currentApp;
@@ -400,13 +422,21 @@ describe('POST /orders idempotência', () => {
     try {
       db.exec('PRAGMA foreign_keys = OFF');
       db.prepare(
-        `INSERT INTO idempotency_keys (key, request_hash, order_id, created_at)
-         VALUES (?, ?, ?, ?)`,
+        `INSERT INTO idempotency_keys (key, request_hash, order_id, created_at, response_json)
+         VALUES (?, ?, ?, ?, ?)`,
       ).run(
         idempotencyKey,
         fingerprintCreateOrderInput(orderPayload),
         'o_ausente',
         new Date().toISOString(),
+        JSON.stringify({
+          id: 'o_ausente',
+          table: '12',
+          status: 'received',
+          items: orderPayload.items,
+          totalCents: 10470,
+          createdAt: new Date().toISOString(),
+        }),
       );
       db.exec('PRAGMA foreign_keys = ON');
 
@@ -443,13 +473,14 @@ describe('POST /orders idempotência', () => {
     });
     expect(swappedItems).not.toBe(forward);
 
+    const omittedNote = fingerprintCreateOrderInput({
+      table: '12',
+      items: [{ productId: 'p1', quantity: 1 }],
+    });
     const emptyNote = fingerprintCreateOrderInput({
       table: '12',
-      items: [
-        { productId: 'p1', quantity: 2, note: '' },
-        { productId: 'p2', quantity: 1 },
-      ],
+      items: [{ productId: 'p1', quantity: 1, note: '' }],
     });
-    expect(emptyNote).not.toBe(forward);
+    expect(emptyNote).not.toBe(omittedNote);
   });
 });

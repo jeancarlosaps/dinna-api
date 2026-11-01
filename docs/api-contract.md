@@ -272,7 +272,7 @@ Sem o header, cada `POST` cria um pedido novo. Esse é o comportamento dos clien
 Com o header:
 
 - Chave válida e ainda não usada grava o pedido e a chave na **mesma transação** e responde **201** com o `Order`.
-- A mesma chave e um payload semanticamente equivalente devolvem **201** com o mesmo corpo (mesmo `id` e `createdAt`), sem criar outro pedido.
+- A mesma chave e um payload semanticamente equivalente devolvem **201** com o corpo original da criação (mesmo `id`, `status`, itens, `totalCents` e `createdAt`), sem criar outro pedido. Um `PATCH` posterior muda o pedido persistido e a resposta de `GET /orders`, mas não altera essa repetição do `POST`.
 - A mesma chave e um payload diferente respondem **409** `IDEMPOTENCY_KEY_CONFLICT` e não criam pedido. A chave continua associada ao primeiro pedido.
 - Header presente e inválido (vazio, não UUID, UUID nulo ou repetido) responde **400** `VALIDATION_ERROR` e não cria pedido.
 - Produto inexistente ou indisponível responde **404** `PRODUCT_NOT_FOUND` e **não consome** a chave: uma tentativa seguinte, com a mesma chave e um body válido, pode criar o pedido.
@@ -409,7 +409,7 @@ Sugere produtos com base no cardápio real. A API **só** devolve `productId` qu
 1. `Idempotency-Key` é opcional. Sem ela, o contrato anterior permanece: cada `POST` cria um pedido.
 2. A chave é um UUID. A API guarda a forma em minúsculas.
 3. A retenção é de 24 horas. A limpeza é oportunista, na transação do `POST` que envia chave, e remove somente a chave.
-4. Repetição equivalente responde **201** com o mesmo recurso, não **200**.
+4. Repetição equivalente responde **201** com o corpo original da criação, não com o pedido já atualizado por `PATCH` e não com **200**.
 5. Payload divergente dentro da janela responde **409** `IDEMPOTENCY_KEY_CONFLICT`.
 6. Pedido, itens e chave são confirmados juntos. Não há linha "em processamento". Concorrência usa o lock de escrita do SQLite e a `PRIMARY KEY` da chave.
 7. Erro antes do commit desfaz pedido e chave. Uma chave órfã responde **500** `IDEMPOTENCY_STATE_INVALID` e não é reutilizada para criar outro pedido.
@@ -420,7 +420,7 @@ Sugere produtos com base no cardápio real. A API **só** devolve `productId` qu
 - Schema aplicado na abertura com `CREATE TABLE IF NOT EXISTS` (sem runner de migrations). Um banco já existente recebe `idempotency_keys` na próxima subida.
 - Seed: `src/db/seed.ts` (`p1`–`p12`) na primeira abertura com tabela vazia.
 - Soft-delete e filtros de `GET /products` seguem este contrato.
-- `idempotency_keys` guarda a chave, o fingerprint SHA-256 do body canônico, o `order_id` e `created_at`. A chave referencia o pedido e não substitui o registro em `orders`.
+- `idempotency_keys` guarda a chave, o fingerprint SHA-256 do body canônico, o `order_id`, `created_at` e o JSON da resposta original. A repetição do `POST` devolve essa resposta, não o pedido depois de uma mudança de status.
 
 ## Próximos passos
 

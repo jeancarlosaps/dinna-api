@@ -33,6 +33,7 @@ CREATE TABLE IF NOT EXISTS idempotency_keys (
   request_hash TEXT NOT NULL,
   order_id TEXT NOT NULL,
   created_at TEXT NOT NULL,
+  response_json TEXT NOT NULL,
   FOREIGN KEY (order_id) REFERENCES orders(id)
 );
 

@@ -45,6 +45,7 @@ const SQLITE_CONSTRAINT_UNIQUE = 2067;
 interface IdempotencyKeyRow {
   request_hash: string;
   order_id: string;
+  response_json: string;
 }
 
 const ORDER_WITH_ITEMS_SELECT = `
@@ -122,14 +123,62 @@ function purgeExpiredIdempotencyKeys(db: Db): void {
 
 function findIdempotencyKey(db: Db, key: string): IdempotencyKeyRow | undefined {
   return db
-    .prepare('SELECT request_hash, order_id FROM idempotency_keys WHERE key = ?')
+    .prepare('SELECT request_hash, order_id, response_json FROM idempotency_keys WHERE key = ?')
     .get(key) as unknown as IdempotencyKeyRow | undefined;
 }
 
+function orderExists(db: Db, id: string): boolean {
+  return db.prepare('SELECT 1 AS present FROM orders WHERE id = ?').get(id) !== undefined;
+}
+
+/** A repetição devolve o corpo gravado na criação, não o pedido depois de um PATCH. */
+function parseStoredOrder(responseJson: string, orderId: string): Order {
+  let parsed: unknown;
+  try {
+    parsed = JSON.parse(responseJson);
+  } catch {
+    throw new AppError(
+      500,
+      'IDEMPOTENCY_STATE_INVALID',
+      'A chave de idempotência não possui o pedido correspondente',
+    );
+  }
+
+  if (!isStoredOrder(parsed) || parsed.id !== orderId) {
+    throw new AppError(
+      500,
+      'IDEMPOTENCY_STATE_INVALID',
+      'A chave de idempotência não possui o pedido correspondente',
+    );
+  }
+
+  return parsed;
+}
+
+function isStoredOrder(value: unknown): value is Order {
+  if (typeof value !== 'object' || value === null) {
+    return false;
+  }
+
+  const order = value as Record<string, unknown>;
+  return (
+    typeof order.id === 'string' &&
+    typeof order.table === 'string' &&
+    (order.status === 'received' ||
+      order.status === 'preparing' ||
+      order.status === 'ready' ||
+      order.status === 'finished') &&
+    Array.isArray(order.items) &&
+    typeof order.totalCents === 'number' &&
+    typeof order.createdAt === 'string'
+  );
+}
+
 /**
- * Devolve o pedido já gravado para a chave.
- * Payload diferente não cria outro pedido. Chave sem o pedido correspondente falha
- * sem reaproveitar a chave, para não esconder um estado inconsistente.
+ * Devolve o corpo original da criação.
+ * Payload diferente não cria outro pedido. O status persistido pode avançar depois,
+ * mas a repetição do POST não acompanha esse PATCH. Chave sem o pedido correspondente
+ * falha sem reaproveitar a chave.
  */
 function replayIdempotentOrder(
   db: Db,
@@ -144,8 +193,7 @@ function replayIdempotentOrder(
     );
   }
 
-  const order = findOrderById(db, existing.order_id);
-  if (!order) {
+  if (!orderExists(db, existing.order_id)) {
     throw new AppError(
       500,
       'IDEMPOTENCY_STATE_INVALID',
@@ -153,7 +201,7 @@ function replayIdempotentOrder(
     );
   }
 
-  return order;
+  return parseStoredOrder(existing.response_json, existing.order_id);
 }
 
 function insertOrder(db: Db, input: CreateOrderInput, idempotencyKey?: string): Order {
@@ -215,9 +263,15 @@ function insertOrder(db: Db, input: CreateOrderInput, idempotencyKey?: string): 
 
   if (idempotencyKey !== undefined) {
     db.prepare(
-      `INSERT INTO idempotency_keys (key, request_hash, order_id, created_at)
-       VALUES (?, ?, ?, ?)`,
-    ).run(idempotencyKey, fingerprintCreateOrderInput(input), order.id, order.createdAt);
+      `INSERT INTO idempotency_keys (key, request_hash, order_id, created_at, response_json)
+       VALUES (?, ?, ?, ?, ?)`,
+    ).run(
+      idempotencyKey,
+      fingerprintCreateOrderInput(input),
+      order.id,
+      order.createdAt,
+      JSON.stringify(order),
+    );
   }
 
   return order;
