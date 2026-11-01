@@ -1,6 +1,7 @@
 import type { FastifyInstance, FastifyPluginAsync } from 'fastify';
 import type { Db } from '../../db/client.js';
 import type { CreateOrderInput, OrderListQuery, UpdateOrderStatusInput } from '../../db/types.js';
+import { parseIdempotencyKey } from './order-idempotency.js';
 import { createOrder, listOrders, updateOrderStatus } from './orders.repository.js';
 
 const orderItemSchema = {
@@ -95,7 +96,8 @@ export function ordersRoutes(db: Db): FastifyPluginAsync {
         },
       },
       async (request, reply) => {
-        const order = createOrder(db, request.body);
+        const idempotencyKey = parseIdempotencyKey(request.headers['idempotency-key']);
+        const order = createOrder(db, request.body, idempotencyKey);
         return reply.status(201).send(order);
       },
     );

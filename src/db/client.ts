@@ -6,6 +6,13 @@ import { SEED_PRODUCTS } from './seed.js';
 
 export type Db = DatabaseSync;
 
+/**
+ * Tempo máximo de espera por um lock de escrita.
+ * Sem isso, dois POST /orders simultâneos com a mesma chave recebem SQLITE_BUSY
+ * em vez de serializar na transação.
+ */
+const SQLITE_BUSY_TIMEOUT_MS = 5_000;
+
 export interface OpenDatabaseOptions {
   /** Caminho do arquivo ou `:memory:` (padrão nos testes). */
   path: string;
@@ -22,6 +29,7 @@ export function openDatabase(options: OpenDatabaseOptions): Db {
 
   const db = new DatabaseSync(path);
   db.exec('PRAGMA foreign_keys = ON');
+  db.exec(`PRAGMA busy_timeout = ${SQLITE_BUSY_TIMEOUT_MS}`);
   db.exec(SCHEMA_SQL);
 
   if (seed) {
