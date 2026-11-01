@@ -74,10 +74,10 @@ Fundação (R0) **em andamento**. Health, SQLite, seed de cardápio e CRUD de `/
 | Formato único de erro (400 / 404 / `AppError` / 500)                 | ✅ Implementado e testado            |
 | Validação de entrada com JSON Schema nativo do Fastify               | ✅ Em uso nas rotas de produtos      |
 | Variáveis de ambiente (`HOST`, `PORT`, `LOG_LEVEL`, `DATABASE_PATH`) | ✅ Implementado e testado            |
-| Lint, format, typecheck, testes, build, CI                           | ✅ 23 testes · GitHub Actions        |
+| Lint, format, typecheck, testes, build, CI                           | ✅ 40 testes · GitHub Actions        |
 | `/products` (CRUD + filtros)                                         | ✅ Implementado e testado (SCRUM-25) |
 | Persistência SQLite (`node:sqlite`) + seed                           | ✅ Implementado                      |
-| `POST /orders`                                                       | ✅ Implementado e testado (SCRUM-45) |
+| `POST /orders`                                                       | ✅ Implementado (SCRUM-45, SCRUM-89) |
 | `GET /orders`                                                        | ✅ Implementado e testado (SCRUM-47) |
 | `PATCH /orders/:id/status`                                           | ✅ Implementado e testado (SCRUM-53) |
 | `/ai/recommendation`                                                 | ⬜ Planejado (R2)                    |
@@ -152,7 +152,8 @@ src/
 │   │   └── health.routes.ts
 │   ├── orders/
 │   │   ├── orders.routes.ts
-│   │   └── orders.repository.ts
+│   │   ├── orders.repository.ts
+│   │   └── order-idempotency.ts
 │   └── products/
 │       ├── products.routes.ts
 │       └── products.repository.ts
@@ -160,10 +161,13 @@ src/
     ├── errors/app-error.ts
     └── http/error-handler.ts
 tests/
+├── helpers/
+│   └── create-order-worker.ts
 ├── env.test.ts
 ├── error-handler.test.ts
 ├── health.test.ts
 ├── orders.test.ts
+├── orders-idempotency.test.ts
 └── products.test.ts
 docs/
 ├── api-contract.md          # contrato REST aceito (SCRUM-24)
@@ -259,7 +263,7 @@ curl http://localhost:3333/nao-existe
 | `PATCH`  | `/orders/:id/status` | R1      | **Implementado** |
 | `POST`   | `/ai/recommendation` | R2      | Planejado        |
 
-Payloads, status e convenções estão em [`docs/api-contract.md`](docs/api-contract.md). O contrato foi **aceito** na **SCRUM-24** e é a fonte de verdade entre esta API e o app Flutter.
+Payloads, status e convenções estão em [`docs/api-contract.md`](docs/api-contract.md). O contrato foi **aceito** na **SCRUM-24** e é a fonte de verdade entre esta API e o app Flutter. `POST /orders` aceita o header opcional `Idempotency-Key` (SCRUM-89). Sem ele, cada chamada continua criando um pedido novo.
 
 ### Convenções de erro
 
@@ -282,7 +286,7 @@ Todas as respostas de erro usam o mesmo formato:
 
 - Arquivo padrão: `data/dinna.sqlite` (criado na primeira subida; pasta no `.gitignore`).
 - Testes: `:memory:` via `buildApp()` — isolados e sem arquivo em disco.
-- Schema: tabelas `products`, `orders` e `order_items` (pedidos só no schema por enquanto).
+- Schema: tabelas `products`, `orders`, `order_items` e `idempotency_keys`. A chave de idempotência referencia o pedido e sobrevive a reinícios do processo.
 - Seed: 12 produtos (`p1`–`p12`) em [`src/db/seed.ts`](src/db/seed.ts) quando a tabela está vazia.
 - Status experimental do Node: a API sobe com um `ExperimentalWarning` do runtime; aceitável no MVP acadêmico.
 

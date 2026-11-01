@@ -1,4 +1,4 @@
-/** Schema mínimo R0/R1: products e orders. */
+/** Schema R0/R1: products, orders e chaves de idempotência do POST /orders. */
 export const SCHEMA_SQL = `
 CREATE TABLE IF NOT EXISTS products (
   id TEXT PRIMARY KEY NOT NULL,
@@ -28,7 +28,16 @@ CREATE TABLE IF NOT EXISTS order_items (
   FOREIGN KEY (product_id) REFERENCES products(id)
 );
 
+CREATE TABLE IF NOT EXISTS idempotency_keys (
+  key TEXT PRIMARY KEY NOT NULL,
+  request_hash TEXT NOT NULL,
+  order_id TEXT NOT NULL,
+  created_at TEXT NOT NULL,
+  FOREIGN KEY (order_id) REFERENCES orders(id)
+);
+
 CREATE INDEX IF NOT EXISTS idx_products_category ON products(category);
 CREATE INDEX IF NOT EXISTS idx_orders_status ON orders(status);
 CREATE INDEX IF NOT EXISTS idx_orders_created_at ON orders(created_at);
+CREATE INDEX IF NOT EXISTS idx_idempotency_keys_created_at ON idempotency_keys(created_at);
 `;

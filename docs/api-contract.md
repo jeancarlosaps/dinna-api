@@ -32,21 +32,25 @@ Todas as respostas de erro usam:
 
 `details` é opcional (presente em validação; ausente nos demais).
 
-| HTTP | `code`                 | Quando                                                     |
-| ---- | ---------------------- | ---------------------------------------------------------- |
-| 400  | `VALIDATION_ERROR`     | Body, params ou query fora do schema                       |
-| 404  | `NOT_FOUND`            | Rota inexistente **ou** recurso inexistente                |
-| 409  | `CONFLICT`             | Transição de status inválida; regra de negócio em conflito |
-| 4xx  | definido no `AppError` | Outras regras de domínio                                   |
-| 500  | `INTERNAL_ERROR`       | Erro inesperado (detalhe só no log)                        |
+| HTTP | `code`                      | Quando                                                          |
+| ---- | --------------------------- | --------------------------------------------------------------- |
+| 400  | `VALIDATION_ERROR`          | Body, params, query ou `Idempotency-Key` fora do contrato       |
+| 404  | `NOT_FOUND`                 | Rota inexistente **ou** recurso inexistente                     |
+| 409  | `CONFLICT`                  | Transição de status inválida; regra de negócio em conflito      |
+| 409  | `IDEMPOTENCY_KEY_CONFLICT`  | Mesma `Idempotency-Key` com payload diferente em `POST /orders` |
+| 4xx  | definido no `AppError`      | Outras regras de domínio                                        |
+| 500  | `INTERNAL_ERROR`            | Erro inesperado (detalhe só no log)                             |
+| 500  | `IDEMPOTENCY_STATE_INVALID` | Chave de idempotência gravada sem o pedido correspondente       |
 
 Códigos de recurso (usados com 404/`AppError`):
 
-| `code`                      | Quando                                                |
-| --------------------------- | ----------------------------------------------------- |
-| `PRODUCT_NOT_FOUND`         | `id` de produto inexistente                           |
-| `ORDER_NOT_FOUND`           | `id` de pedido inexistente                            |
-| `INVALID_STATUS_TRANSITION` | Status atual não permite o `status` pedido (HTTP 409) |
+| `code`                      | Quando                                                                                       |
+| --------------------------- | -------------------------------------------------------------------------------------------- |
+| `PRODUCT_NOT_FOUND`         | `id` de produto inexistente                                                                  |
+| `ORDER_NOT_FOUND`           | `id` de pedido inexistente                                                                   |
+| `INVALID_STATUS_TRANSITION` | Status atual não permite o `status` pedido (HTTP 409)                                        |
+| `IDEMPOTENCY_KEY_CONFLICT`  | HTTP 409. A `Idempotency-Key` ainda está na janela de retenção e o payload não é equivalente |
+| `IDEMPOTENCY_STATE_INVALID` | HTTP 500. A chave existe, mas o pedido correspondente não                                    |
 
 ## Recursos
 
@@ -257,6 +261,29 @@ Cada item contém `id`, `table`, `status`, `items`, `totalCents` e `createdAt`. 
 Cria pedido a partir da mesa. Status inicial sempre `received`.  
 `totalCents` é calculado pela API com os preços **atuais** dos produtos.
 
+**Header**
+
+| Header            | Obrigatório | Formato                                 | Descrição                                                                     |
+| ----------------- | ----------- | --------------------------------------- | ----------------------------------------------------------------------------- |
+| `Idempotency-Key` | não         | UUID (RFC 4122 / RFC 9562), versões 1–8 | Identifica uma intenção de pedido. A comparação ignora maiúsculas/minúsculas. |
+
+Sem o header, cada `POST` cria um pedido novo. Esse é o comportamento dos clientes atuais, inclusive o Flutter desta entrega: a proteção contra duplicata só existe quando a chave é enviada.
+
+Com o header:
+
+- Chave válida e ainda não usada grava o pedido e a chave na **mesma transação** e responde **201** com o `Order`.
+- A mesma chave e um payload semanticamente equivalente devolvem **201** com o mesmo corpo (mesmo `id` e `createdAt`), sem criar outro pedido.
+- A mesma chave e um payload diferente respondem **409** `IDEMPOTENCY_KEY_CONFLICT` e não criam pedido. A chave continua associada ao primeiro pedido.
+- Header presente e inválido (vazio, não UUID, UUID nulo ou repetido) responde **400** `VALIDATION_ERROR` e não cria pedido.
+- Produto inexistente ou indisponível responde **404** `PRODUCT_NOT_FOUND` e **não consome** a chave: uma tentativa seguinte, com a mesma chave e um body válido, pode criar o pedido.
+- A chave fica retida por **24 horas** a partir de `createdAt`. Depois disso a mesma chave pode criar outro pedido. A limpeza apaga só a chave, nunca o pedido, e ocorre dentro da transação de um `POST` que envia chave.
+- Duas requisições simultâneas com a mesma chave serializam no SQLite (`BEGIN IMMEDIATE` e `busy_timeout`). Não existe registro "em andamento". Se o processo cair antes do commit, a transação é desfeita e nem o pedido nem a chave permanecem. A `PRIMARY KEY` da chave impede uma segunda inserção.
+- Se a chave existir sem o pedido correspondente, a API responde **500** `IDEMPOTENCY_STATE_INVALID` e não cria outro pedido com essa chave.
+
+Equivalência semântica do body: mesmos `table` e `items` (`productId`, `quantity` e `note` quando presente). A ordem das propriedades JSON não importa. A ordem dos itens importa. `note` omitida é diferente de `note` vazia. O total não entra na comparação porque o cliente não o envia.
+
+**Compatibilidade:** nenhuma mudança obrigatória para clientes que já chamam `POST /orders` sem o header. Enviar `Idempotency-Key` é opt-in. O app Flutter ainda não gera nem envia essa chave; a integração fica para uma issue própria.
+
 **Body**
 
 ```json
@@ -269,12 +296,30 @@ Cria pedido a partir da mesa. Status inicial sempre `received`.
 }
 ```
 
-**201 Created** — `Order` completo.  
-**400** — `VALIDATION_ERROR` (body inválido; lista vazia; `quantity` &lt; 1 ou insegura; total fora da faixa de inteiros seguros).
+Exemplo com chave:
 
-**404** — `PRODUCT_NOT_FOUND` se algum `productId` não existir **ou** estiver `available: false`.
+```http
+POST /orders HTTP/1.1
+Content-Type: application/json
+Idempotency-Key: 550e8400-e29b-41d4-a716-446655440000
 
-A gravação do pedido e de seus itens é atômica: falhas durante a validação ou inserção não deixam pedido nem itens parcialmente persistidos.
+{
+  "table": "12",
+  "items": [
+    { "productId": "p1", "quantity": 2, "note": "sem cebola" },
+    { "productId": "p2", "quantity": 1 }
+  ]
+}
+```
+
+**201 Created** — `Order` completo, tanto na criação quanto na repetição equivalente.  
+**400** — `VALIDATION_ERROR` (body inválido; lista vazia; `quantity` &lt; 1 ou insegura; total fora da faixa de inteiros seguros; `Idempotency-Key` presente e inválida).
+
+**404** — `PRODUCT_NOT_FOUND` se algum `productId` não existir **ou** estiver `available: false`. A chave, se enviada, não fica gravada.
+
+**409** — `IDEMPOTENCY_KEY_CONFLICT` quando a chave ainda está na janela de 24 horas e o payload não é equivalente ao da primeira gravação.
+
+A gravação do pedido, dos itens e da chave de idempotência é atômica: falhas durante a validação ou a inserção não deixam pedido, itens ou chave parcialmente persistidos.
 
 Exemplo de resposta:
 
@@ -359,11 +404,23 @@ Sugere produtos com base no cardápio real. A API **só** devolve `productId` qu
 6. `POST /orders` rejeita produtos inexistentes ou indisponíveis com `PRODUCT_NOT_FOUND`.
 7. `totalCents` calculado no servidor na criação; não é enviado pelo cliente.
 
+## Idempotência de `POST /orders` (SCRUM-89)
+
+1. `Idempotency-Key` é opcional. Sem ela, o contrato anterior permanece: cada `POST` cria um pedido.
+2. A chave é um UUID. A API guarda a forma em minúsculas.
+3. A retenção é de 24 horas. A limpeza é oportunista, na transação do `POST` que envia chave, e remove somente a chave.
+4. Repetição equivalente responde **201** com o mesmo recurso, não **200**.
+5. Payload divergente dentro da janela responde **409** `IDEMPOTENCY_KEY_CONFLICT`.
+6. Pedido, itens e chave são confirmados juntos. Não há linha "em processamento". Concorrência usa o lock de escrita do SQLite e a `PRIMARY KEY` da chave.
+7. Erro antes do commit desfaz pedido e chave. Uma chave órfã responde **500** `IDEMPOTENCY_STATE_INVALID` e não é reutilizada para criar outro pedido.
+
 ## Persistência (SCRUM-25)
 
 - Driver: `node:sqlite` (nativo).
+- Schema aplicado na abertura com `CREATE TABLE IF NOT EXISTS` (sem runner de migrations). Um banco já existente recebe `idempotency_keys` na próxima subida.
 - Seed: `src/db/seed.ts` (`p1`–`p12`) na primeira abertura com tabela vazia.
 - Soft-delete e filtros de `GET /products` seguem este contrato.
+- `idempotency_keys` guarda a chave, o fingerprint SHA-256 do body canônico, o `order_id` e `created_at`. A chave referencia o pedido e não substitui o registro em `orders`.
 
 ## Próximos passos
 
