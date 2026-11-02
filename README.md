@@ -74,7 +74,7 @@ Fundação (R0) **em andamento**. Health, SQLite, seed de cardápio e CRUD de `/
 | Formato único de erro (400 / 404 / `AppError` / 500)                 | ✅ Implementado e testado                      |
 | Validação de entrada com JSON Schema nativo do Fastify               | ✅ Em uso nas rotas de produtos                |
 | Variáveis de ambiente (`HOST`, `PORT`, `LOG_LEVEL`, `DATABASE_PATH`) | ✅ Implementado e testado                      |
-| Lint, format, typecheck, testes, build, CI                           | ✅ 41 testes · GitHub Actions                  |
+| Lint, format, typecheck, testes, build, CI                           | ✅ 43 testes · GitHub Actions                  |
 | `/products` (CRUD + filtros)                                         | ✅ Implementado e testado (SCRUM-25)           |
 | Persistência SQLite (`node:sqlite`) + seed                           | ✅ Implementado                                |
 | `POST /orders`                                                       | ✅ Implementado (SCRUM-45, SCRUM-89, SCRUM-90) |
@@ -287,7 +287,7 @@ Todas as respostas de erro usam o mesmo formato:
 - Arquivo padrão: `data/dinna.sqlite` (criado na primeira subida; pasta no `.gitignore`).
 - Testes: `:memory:` via `buildApp()` — isolados e sem arquivo em disco.
 - Schema: tabelas `products`, `orders`, `order_items` e `idempotency_keys`. A chave de idempotência referencia o pedido, guarda o fingerprint e o JSON original, e não expira. Nenhum caminho da API apaga essa linha. Ela sobrevive a reinícios do processo.
-- Limite da garantia: no máximo um pedido por chave que ainda está no arquivo. Chave já apagada por uma versão anterior não é recriada, e `INSERT OR IGNORE` não entra na recuperação.
+- Limite da garantia: ela depende da preservação contínua da linha da chave no SQLite. Enquanto a linha existir, a mesma chave não cria outro pedido. Uma chave apagada por uma versão anterior não é reconstruída. Um novo `POST` com essa chave ausente segue o caminho de uma intenção nova: um payload aceito cria outro pedido, mesmo que o pedido original permaneça no banco. `INSERT OR IGNORE` não entra na recuperação.
 - Crescimento: na ordem de 1 a 2 KB por chave no pedido de exemplo. Cerca de 200 criações por dia ficam em torno de 100 MB por ano; cerca de 2 000 por dia, em torno de 1 GB por ano, e o backup acompanha. Não há expurgo.
 - Rollback floor: depois desta versão, não voltar a publicar um binário que execute `DELETE` em `idempotency_keys`. Restaurar o arquivo SQLite é outra operação e não autoriza esse binário. Um backup anterior ao corte pode já não ter chaves; um backup posterior só é seguro com o binário que não purga.
 - Seed: 12 produtos (`p1`–`p12`) em [`src/db/seed.ts`](src/db/seed.ts) quando a tabela está vazia.
@@ -309,16 +309,16 @@ Todas as respostas de erro usam o mesmo formato:
 | `npm run format:check` | Prettier, só verificando           |
 | `npm run build`        | Compila para `dist/`               |
 
-O que os 41 testes cobrem:
+O que os 43 testes cobrem:
 
-| Arquivo                            | Cobre                                                                                          |
-| ---------------------------------- | ---------------------------------------------------------------------------------------------- |
-| `tests/health.test.ts`             | `GET /health` responde 200 com `{ "status": "ok" }`                                            |
-| `tests/error-handler.test.ts`      | 404 padronizado, 400 de validação, `AppError` e 500 sem vazar o detalhe                        |
-| `tests/env.test.ts`                | Valores padrão e rejeição de `PORT`, `LOG_LEVEL` e `DATABASE_PATH`                             |
-| `tests/products.test.ts`           | Listagem/filtros, detalhe, create, update, soft-delete e erros                                 |
-| `tests/orders.test.ts`             | Criação, consulta e atualização, transições, filtros e rollback                                |
-| `tests/orders-idempotency.test.ts` | Chave permanente, replay do snapshot, 409, concorrência, rollback, reinício e repetição tardia |
+| Arquivo                            | Cobre                                                                                                             |
+| ---------------------------------- | ----------------------------------------------------------------------------------------------------------------- |
+| `tests/health.test.ts`             | `GET /health` responde 200 com `{ "status": "ok" }`                                                               |
+| `tests/error-handler.test.ts`      | 404 padronizado, 400 de validação, `AppError` e 500 sem vazar o detalhe                                           |
+| `tests/env.test.ts`                | Valores padrão e rejeição de `PORT`, `LOG_LEVEL` e `DATABASE_PATH`                                                |
+| `tests/products.test.ts`           | Listagem/filtros, detalhe, create, update, soft-delete e erros                                                    |
+| `tests/orders.test.ts`             | Criação, consulta e atualização, transições, filtros e rollback                                                   |
+| `tests/orders-idempotency.test.ts` | Chave permanente, replay do snapshot, 409, concorrência, rollback, reinício, repetição tardia e catálogo alterado |
 
 ## 08 · CI
 

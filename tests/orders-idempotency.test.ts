@@ -171,6 +171,58 @@ describe('POST /orders idempotência', () => {
     expect(listed.json()).toMatchObject([{ id: created.json().id, status: 'preparing' }]);
   });
 
+  it('devolve o snapshot original quando o produto fica indisponível depois da criação', async () => {
+    const currentApp = buildApp();
+    app = currentApp;
+    const idempotencyKey = randomUUID();
+
+    const created = await postOrder(currentApp, orderPayload, idempotencyKey);
+    expect(created.statusCode).toBe(201);
+
+    const removed = await currentApp.inject({ method: 'DELETE', url: '/products/p1' });
+    expect(removed.statusCode).toBe(204);
+
+    const replay = await postOrder(currentApp, orderPayload, idempotencyKey);
+    expect(replay.statusCode).toBe(201);
+    expect(replay.json()).toEqual(created.json());
+
+    const listed = await currentApp.inject({ method: 'GET', url: '/orders' });
+    expect(listed.json()).toEqual([created.json()]);
+  });
+
+  it('devolve o totalCents original quando o preço do produto muda depois da criação', async () => {
+    const currentApp = buildApp();
+    app = currentApp;
+    const idempotencyKey = randomUUID();
+
+    const created = await postOrder(currentApp, orderPayload, idempotencyKey);
+    expect(created.statusCode).toBe(201);
+    expect(created.json().totalCents).toBe(10470);
+
+    const updated = await currentApp.inject({
+      method: 'PUT',
+      url: '/products/p1',
+      payload: {
+        name: 'Burger Clássico',
+        description: 'Pão brioche, blend 180g, queijo cheddar e salada',
+        category: 'burgers',
+        priceCents: 1000,
+        available: true,
+      },
+    });
+    expect(updated.statusCode).toBe(200);
+    expect(updated.json()).toMatchObject({ id: 'p1', priceCents: 1000, available: true });
+
+    const replay = await postOrder(currentApp, orderPayload, idempotencyKey);
+    expect(replay.statusCode).toBe(201);
+    expect(replay.json()).toEqual(created.json());
+    expect(replay.json().totalCents).toBe(10470);
+
+    const listed = await currentApp.inject({ method: 'GET', url: '/orders' });
+    expect(listed.json()).toHaveLength(1);
+    expect(listed.json()[0].id).toBe(created.json().id);
+  });
+
   it('retorna 409 quando a mesma chave chega com payload diferente', async () => {
     const currentApp = buildApp();
     app = currentApp;
