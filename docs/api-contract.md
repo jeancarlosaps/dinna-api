@@ -44,13 +44,13 @@ Todas as respostas de erro usam:
 
 Códigos de recurso (usados com 404/`AppError`):
 
-| `code`                      | Quando                                                                                       |
-| --------------------------- | -------------------------------------------------------------------------------------------- |
-| `PRODUCT_NOT_FOUND`         | `id` de produto inexistente                                                                  |
-| `ORDER_NOT_FOUND`           | `id` de pedido inexistente                                                                   |
-| `INVALID_STATUS_TRANSITION` | Status atual não permite o `status` pedido (HTTP 409)                                        |
-| `IDEMPOTENCY_KEY_CONFLICT`  | HTTP 409. A `Idempotency-Key` ainda está na janela de retenção e o payload não é equivalente |
-| `IDEMPOTENCY_STATE_INVALID` | HTTP 500. A chave existe, mas o pedido correspondente não                                    |
+| `code`                      | Quando                                                           |
+| --------------------------- | ---------------------------------------------------------------- |
+| `PRODUCT_NOT_FOUND`         | `id` de produto inexistente                                      |
+| `ORDER_NOT_FOUND`           | `id` de pedido inexistente                                       |
+| `INVALID_STATUS_TRANSITION` | Status atual não permite o `status` pedido (HTTP 409)            |
+| `IDEMPOTENCY_KEY_CONFLICT`  | HTTP 409. A `Idempotency-Key` já identifica um payload diferente |
+| `IDEMPOTENCY_STATE_INVALID` | HTTP 500. A chave existe, mas o pedido correspondente não        |
 
 ## Recursos
 
@@ -276,7 +276,8 @@ Com o header:
 - A mesma chave e um payload diferente respondem **409** `IDEMPOTENCY_KEY_CONFLICT` e não criam pedido. A chave continua associada ao primeiro pedido.
 - Header presente e inválido (vazio, não UUID, UUID nulo ou repetido) responde **400** `VALIDATION_ERROR` e não cria pedido.
 - Produto inexistente ou indisponível responde **404** `PRODUCT_NOT_FOUND` e **não consome** a chave: uma tentativa seguinte, com a mesma chave e um body válido, pode criar o pedido.
-- A chave fica retida por **24 horas** a partir de `createdAt`. Depois disso a mesma chave pode criar outro pedido. A limpeza apaga só a chave, nunca o pedido, e ocorre dentro da transação de um `POST` que envia chave.
+- A chave permanece enquanto a linha existir em `idempotency_keys`. Não há prazo nem rotina que a apague. A idade de `created_at` não libera a chave para outro pedido.
+- O handler de `POST /orders` envia o header de resposta `Idempotency-Retention: permanent`. Ele só anuncia a política. A garantia é a linha gravada, não o header. Um body recusado pelo schema não passa pelo handler e portanto não traz esse header. Clientes que ignoram headers desconhecidos continuam compatíveis: o corpo, os status e os códigos de erro não mudam.
 - Duas requisições simultâneas com a mesma chave serializam no SQLite (`BEGIN IMMEDIATE` e `busy_timeout`). Não existe registro "em andamento". Se o processo cair antes do commit, a transação é desfeita e nem o pedido nem a chave permanecem. A `PRIMARY KEY` da chave impede uma segunda inserção.
 - Se a chave existir sem o pedido correspondente, a API responde **500** `IDEMPOTENCY_STATE_INVALID` e não cria outro pedido com essa chave.
 
@@ -317,7 +318,7 @@ Idempotency-Key: 550e8400-e29b-41d4-a716-446655440000
 
 **404** — `PRODUCT_NOT_FOUND` se algum `productId` não existir **ou** estiver `available: false`. A chave, se enviada, não fica gravada.
 
-**409** — `IDEMPOTENCY_KEY_CONFLICT` quando a chave ainda está na janela de 24 horas e o payload não é equivalente ao da primeira gravação.
+**409** — `IDEMPOTENCY_KEY_CONFLICT` quando a chave já existe e o payload não é equivalente ao da primeira gravação. A idade da chave não muda esse resultado.
 
 A gravação do pedido, dos itens e da chave de idempotência é atômica: falhas durante a validação ou a inserção não deixam pedido, itens ou chave parcialmente persistidos.
 
@@ -408,11 +409,18 @@ Sugere produtos com base no cardápio real. A API **só** devolve `productId` qu
 
 1. `Idempotency-Key` é opcional. Sem ela, o contrato anterior permanece: cada `POST` cria um pedido.
 2. A chave é um UUID. A API guarda a forma em minúsculas.
-3. A retenção é de 24 horas. A limpeza é oportunista, na transação do `POST` que envia chave, e remove somente a chave.
-4. Repetição equivalente responde **201** com o corpo original da criação, não com o pedido já atualizado por `PATCH` e não com **200**.
-5. Payload divergente dentro da janela responde **409** `IDEMPOTENCY_KEY_CONFLICT`.
-6. Pedido, itens e chave são confirmados juntos. Não há linha "em processamento". Concorrência usa o lock de escrita do SQLite e a `PRIMARY KEY` da chave.
-7. Erro antes do commit desfaz pedido e chave. Uma chave órfã responde **500** `IDEMPOTENCY_STATE_INVALID` e não é reutilizada para criar outro pedido.
+3. Repetição equivalente responde **201** com o corpo original da criação, não com o pedido já atualizado por `PATCH` e não com **200**.
+4. Payload divergente responde **409** `IDEMPOTENCY_KEY_CONFLICT`.
+5. Pedido, itens e chave são confirmados juntos. Não há linha "em processamento". Concorrência usa o lock de escrita do SQLite e a `PRIMARY KEY` da chave.
+6. Erro antes do commit desfaz pedido e chave. Uma chave órfã responde **500** `IDEMPOTENCY_STATE_INVALID` e não é reutilizada para criar outro pedido.
+
+## Retenção permanente (SCRUM-90)
+
+1. `idempotency_keys` não expira. O fingerprint e o `response_json` original permanecem. Não há segunda tabela, consulta por intenção, token, job nem limpeza.
+2. Limite da garantia: há no máximo um pedido por chave que ainda está no arquivo. Chave ausente quando esta versão passa a atender — porque uma versão anterior já a apagou ou porque o pedido nunca chegou ao commit — não é recriada. Não há backfill e não se usa `INSERT OR IGNORE` para encobrir o conflito.
+3. Crescimento: cada linha guarda a chave, o fingerprint, o `order_id`, `created_at` e o JSON original. No pedido de exemplo, a ordem de grandeza fica em torno de 1 a 2 KB por chave, com o registro e o índice. Cerca de 200 criações por dia somam em torno de 100 MB por ano; cerca de 2 000 por dia, em torno de 1 GB por ano. O backup cresce junto. Não há expurgo. `created_at` não é prazo de validade; o índice `idx_idempotency_keys_created_at` deixa de servir a uma limpeza e permanece no schema já aplicado.
+4. Rollback floor: depois que um binário sem `DELETE` em `idempotency_keys` atender o ambiente, não se publica de novo um binário que apague essas linhas. Restaurar o arquivo do banco é outra operação. Um backup anterior ao corte pode já não ter chaves, e esta versão não as recria. Um backup posterior ao corte só é seguro com um binário que não purga. Subir o binário antigo sobre o banco novo volta a apagar chaves com mais de 24 horas.
+5. O contrato dos consumidores que não enviam `Idempotency-Key` permanece: cada `POST` cria um pedido e o corpo da resposta não ganha campo novo.
 
 ## Persistência (SCRUM-25)
 
@@ -420,7 +428,7 @@ Sugere produtos com base no cardápio real. A API **só** devolve `productId` qu
 - Schema aplicado na abertura com `CREATE TABLE IF NOT EXISTS` (sem runner de migrations). Um banco já existente recebe `idempotency_keys` na próxima subida.
 - Seed: `src/db/seed.ts` (`p1`–`p12`) na primeira abertura com tabela vazia.
 - Soft-delete e filtros de `GET /products` seguem este contrato.
-- `idempotency_keys` guarda a chave, o fingerprint SHA-256 do body canônico, o `order_id`, `created_at` e o JSON da resposta original. A repetição do `POST` devolve essa resposta, não o pedido depois de uma mudança de status.
+- `idempotency_keys` guarda a chave, o fingerprint SHA-256 do body canônico, o `order_id`, `created_at` e o JSON da resposta original. A repetição do `POST` devolve essa resposta, não o pedido depois de uma mudança de status. A linha não é apagada por idade.
 
 ## Próximos passos
 

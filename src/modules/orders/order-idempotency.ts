@@ -2,9 +2,6 @@ import { createHash } from 'node:crypto';
 import type { CreateOrderInput } from '../../db/types.js';
 import { AppError } from '../../shared/errors/app-error.js';
 
-/** Janela em que a mesma chave devolve o pedido original. Depois disso a chave pode ser reutilizada. */
-export const ORDER_IDEMPOTENCY_RETENTION_MS = 24 * 60 * 60 * 1000;
-
 /**
  * UUID de RFC 4122 / RFC 9562: versão 1–8 e variante 8, 9, a ou b.
  * O UUID nulo é recusado de propósito.

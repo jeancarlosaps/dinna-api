@@ -1,4 +1,5 @@
 import { randomUUID } from 'node:crypto';
+import type { OutgoingHttpHeaders } from 'node:http';
 import { mkdtempSync, rmSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
@@ -10,12 +11,13 @@ import { buildApp } from '../src/app.js';
 import { openDatabase } from '../src/db/client.js';
 import type { CreateOrderInput } from '../src/db/types.js';
 import {
-  ORDER_IDEMPOTENCY_RETENTION_MS,
   fingerprintCreateOrderInput,
   parseIdempotencyKey,
 } from '../src/modules/orders/order-idempotency.js';
 import { createOrder } from '../src/modules/orders/orders.repository.js';
 import { AppError } from '../src/shared/errors/app-error.js';
+
+const THIRTY_DAYS_MS = 30 * 24 * 60 * 60 * 1000;
 
 const orderPayload: CreateOrderInput = {
   table: '12',
@@ -39,6 +41,10 @@ function countRows(
 ): number {
   const row = db.prepare(`SELECT COUNT(*) AS count FROM ${table}`).get() as { count: number };
   return row.count;
+}
+
+function expectPermanentRetention(headers: OutgoingHttpHeaders): void {
+  expect(headers['idempotency-retention']).toBe('permanent');
 }
 
 function postOrder(app: FastifyInstance, payload: CreateOrderInput, idempotencyKey?: string) {
@@ -113,6 +119,7 @@ describe('POST /orders idempotência', () => {
     const response = await postOrder(currentApp, orderPayload, idempotencyKey);
 
     expect(response.statusCode).toBe(201);
+    expectPermanentRetention(response.headers);
     expect(response.json()).toMatchObject({
       table: '12',
       status: 'received',
@@ -134,6 +141,7 @@ describe('POST /orders idempotência', () => {
     const replay = await postOrder(currentApp, orderPayload, idempotencyKey.toUpperCase());
 
     expect(replay.statusCode).toBe(201);
+    expectPermanentRetention(replay.headers);
     expect(replay.json()).toEqual(first.json());
 
     const listed = await currentApp.inject({ method: 'GET', url: '/orders' });
@@ -156,6 +164,7 @@ describe('POST /orders idempotência', () => {
 
     const replay = await postOrder(currentApp, orderPayload, idempotencyKey);
     expect(replay.statusCode).toBe(201);
+    expectPermanentRetention(replay.headers);
     expect(replay.json()).toEqual(created.json());
 
     const listed = await currentApp.inject({ method: 'GET', url: '/orders' });
@@ -175,6 +184,7 @@ describe('POST /orders idempotência', () => {
     );
 
     expect(conflict.statusCode).toBe(409);
+    expectPermanentRetention(conflict.headers);
     expect(conflict.json()).toEqual({
       error: {
         code: 'IDEMPOTENCY_KEY_CONFLICT',
@@ -267,6 +277,7 @@ describe('POST /orders idempotência', () => {
       const replay = await postOrder(restarted, orderPayload, idempotencyKey);
 
       expect(replay.statusCode).toBe(201);
+      expectPermanentRetention(replay.headers);
       expect(replay.json()).toEqual(created.json());
 
       const listed = await restarted.inject({ method: 'GET', url: '/orders' });
@@ -321,6 +332,7 @@ describe('POST /orders idempotência', () => {
       idempotencyKey,
     );
     expect(missing.statusCode).toBe(404);
+    expectPermanentRetention(missing.headers);
     expect(missing.json()).toMatchObject({ error: { code: 'PRODUCT_NOT_FOUND' } });
 
     const created = await postOrder(currentApp, orderPayload, idempotencyKey);
@@ -354,6 +366,8 @@ describe('POST /orders idempotência', () => {
 
     expect(first.statusCode).toBe(201);
     expect(second.statusCode).toBe(201);
+    expectPermanentRetention(first.headers);
+    expectPermanentRetention(second.headers);
     expect(second.json().id).not.toBe(first.json().id);
     expect(parseIdempotencyKey(undefined)).toBeUndefined();
   });
@@ -370,6 +384,7 @@ describe('POST /orders idempotência', () => {
     ]) {
       const response = await postOrder(currentApp, orderPayload, idempotencyKey);
       expect(response.statusCode, idempotencyKey).toBe(400);
+      expectPermanentRetention(response.headers);
       expect(response.json()).toMatchObject({
         error: {
           code: 'VALIDATION_ERROR',
@@ -389,29 +404,66 @@ describe('POST /orders idempotência', () => {
     expect(listed.json()).toEqual([]);
   });
 
-  it('permite reutilizar a chave depois da retenção, sem apagar o pedido anterior', () => {
-    const db = openDatabase({ path: ':memory:' });
+  it('devolve o pedido original depois de 30 dias e mantém 409 para outro payload', async () => {
+    const directory = mkdtempSync(join(tmpdir(), 'dinna-idempotency-'));
+    const databasePath = join(directory, 'dinna.sqlite');
     const idempotencyKey = randomUUID();
 
     try {
-      const first = createOrder(db, orderPayload, idempotencyKey);
-      const expiredAt = new Date(Date.now() - ORDER_IDEMPOTENCY_RETENTION_MS - 1000).toISOString();
-      db.prepare('UPDATE idempotency_keys SET created_at = ? WHERE key = ?').run(
-        expiredAt,
+      const firstApp = buildApp({ databasePath });
+      app = firstApp;
+      const created = await postOrder(firstApp, orderPayload, idempotencyKey);
+      expect(created.statusCode).toBe(201);
+      await firstApp.close();
+      app = undefined;
+
+      const db = openDatabase({ path: databasePath, seed: false });
+      try {
+        const agedAt = new Date(Date.now() - THIRTY_DAYS_MS).toISOString();
+        const updated = db
+          .prepare('UPDATE idempotency_keys SET created_at = ? WHERE key = ?')
+          .run(agedAt, idempotencyKey);
+        expect(Number(updated.changes)).toBe(1);
+      } finally {
+        db.close();
+      }
+
+      const restarted = buildApp({ databasePath });
+      app = restarted;
+      const replay = await postOrder(restarted, orderPayload, idempotencyKey);
+      expect(replay.statusCode).toBe(201);
+      expectPermanentRetention(replay.headers);
+      expect(replay.json()).toEqual(created.json());
+
+      const conflict = await postOrder(
+        restarted,
+        { table: '12', items: [{ productId: 'p1', quantity: 1 }] },
         idempotencyKey,
       );
+      expect(conflict.statusCode).toBe(409);
+      expectPermanentRetention(conflict.headers);
+      expect(conflict.json()).toMatchObject({ error: { code: 'IDEMPOTENCY_KEY_CONFLICT' } });
 
-      const second = createOrder(db, orderPayload, idempotencyKey);
-      expect(second.id).not.toBe(first.id);
-      expect(countRows(db, 'orders')).toBe(2);
-      expect(countRows(db, 'idempotency_keys')).toBe(1);
+      const listed = await restarted.inject({ method: 'GET', url: '/orders' });
+      expect(listed.json()).toEqual([created.json()]);
 
-      const stored = db
-        .prepare('SELECT order_id FROM idempotency_keys WHERE key = ?')
-        .get(idempotencyKey) as { order_id: string };
-      expect(stored.order_id).toBe(second.id);
+      const storedDb = openDatabase({ path: databasePath, seed: false });
+      try {
+        expect(countRows(storedDb, 'orders')).toBe(1);
+        expect(countRows(storedDb, 'idempotency_keys')).toBe(1);
+        const stored = storedDb
+          .prepare('SELECT order_id, response_json FROM idempotency_keys WHERE key = ?')
+          .get(idempotencyKey) as { order_id: string; response_json: string };
+        expect(stored.order_id).toBe(created.json().id);
+        expect(JSON.parse(stored.response_json)).toEqual(created.json());
+      } finally {
+        storedDb.close();
+      }
     } finally {
-      db.close();
+      const openedApp = app;
+      app = undefined;
+      await openedApp?.close();
+      rmSync(directory, { recursive: true, force: true });
     }
   });
 

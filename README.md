@@ -67,21 +67,21 @@ O Dinna é um app de pedidos feitos **dentro do restaurante** (não é delivery)
 
 Fundação (R0) **em andamento**. Health, SQLite, seed de cardápio e CRUD de `/products` estão prontos. O módulo de pedidos permite criar, consultar e atualizar pedidos por `POST /orders`, `GET /orders` e `PATCH /orders/:id/status`; recomendações seguem no contrato.
 
-| Item                                                                 | Situação                             |
-| -------------------------------------------------------------------- | ------------------------------------ |
-| Servidor Fastify + TypeScript strict                                 | ✅ Implementado                      |
-| `GET /health`                                                        | ✅ Implementado e testado            |
-| Formato único de erro (400 / 404 / `AppError` / 500)                 | ✅ Implementado e testado            |
-| Validação de entrada com JSON Schema nativo do Fastify               | ✅ Em uso nas rotas de produtos      |
-| Variáveis de ambiente (`HOST`, `PORT`, `LOG_LEVEL`, `DATABASE_PATH`) | ✅ Implementado e testado            |
-| Lint, format, typecheck, testes, build, CI                           | ✅ 41 testes · GitHub Actions        |
-| `/products` (CRUD + filtros)                                         | ✅ Implementado e testado (SCRUM-25) |
-| Persistência SQLite (`node:sqlite`) + seed                           | ✅ Implementado                      |
-| `POST /orders`                                                       | ✅ Implementado (SCRUM-45, SCRUM-89) |
-| `GET /orders`                                                        | ✅ Implementado e testado (SCRUM-47) |
-| `PATCH /orders/:id/status`                                           | ✅ Implementado e testado (SCRUM-53) |
-| `/ai/recommendation`                                                 | ⬜ Planejado (R2)                    |
-| Autenticação                                                         | ⬜ Fora do escopo atual              |
+| Item                                                                 | Situação                                       |
+| -------------------------------------------------------------------- | ---------------------------------------------- |
+| Servidor Fastify + TypeScript strict                                 | ✅ Implementado                                |
+| `GET /health`                                                        | ✅ Implementado e testado                      |
+| Formato único de erro (400 / 404 / `AppError` / 500)                 | ✅ Implementado e testado                      |
+| Validação de entrada com JSON Schema nativo do Fastify               | ✅ Em uso nas rotas de produtos                |
+| Variáveis de ambiente (`HOST`, `PORT`, `LOG_LEVEL`, `DATABASE_PATH`) | ✅ Implementado e testado                      |
+| Lint, format, typecheck, testes, build, CI                           | ✅ 41 testes · GitHub Actions                  |
+| `/products` (CRUD + filtros)                                         | ✅ Implementado e testado (SCRUM-25)           |
+| Persistência SQLite (`node:sqlite`) + seed                           | ✅ Implementado                                |
+| `POST /orders`                                                       | ✅ Implementado (SCRUM-45, SCRUM-89, SCRUM-90) |
+| `GET /orders`                                                        | ✅ Implementado e testado (SCRUM-47)           |
+| `PATCH /orders/:id/status`                                           | ✅ Implementado e testado (SCRUM-53)           |
+| `/ai/recommendation`                                                 | ⬜ Planejado (R2)                              |
+| Autenticação                                                         | ⬜ Fora do escopo atual                        |
 
 ---
 
@@ -263,7 +263,7 @@ curl http://localhost:3333/nao-existe
 | `PATCH`  | `/orders/:id/status` | R1      | **Implementado** |
 | `POST`   | `/ai/recommendation` | R2      | Planejado        |
 
-Payloads, status e convenções estão em [`docs/api-contract.md`](docs/api-contract.md). O contrato foi **aceito** na **SCRUM-24** e é a fonte de verdade entre esta API e o app Flutter. `POST /orders` aceita o header opcional `Idempotency-Key` (SCRUM-89). Sem ele, cada chamada continua criando um pedido novo.
+Payloads, status e convenções estão em [`docs/api-contract.md`](docs/api-contract.md). O contrato foi **aceito** na **SCRUM-24** e é a fonte de verdade entre esta API e o app Flutter. `POST /orders` aceita o header opcional `Idempotency-Key` (SCRUM-89). Sem ele, cada chamada continua criando um pedido novo. Com a chave, a retenção é permanente (SCRUM-90): a mesma chave e o mesmo payload devolvem o snapshot original, qualquer que seja a idade da chave.
 
 ### Convenções de erro
 
@@ -286,7 +286,10 @@ Todas as respostas de erro usam o mesmo formato:
 
 - Arquivo padrão: `data/dinna.sqlite` (criado na primeira subida; pasta no `.gitignore`).
 - Testes: `:memory:` via `buildApp()` — isolados e sem arquivo em disco.
-- Schema: tabelas `products`, `orders`, `order_items` e `idempotency_keys`. A chave de idempotência referencia o pedido e sobrevive a reinícios do processo.
+- Schema: tabelas `products`, `orders`, `order_items` e `idempotency_keys`. A chave de idempotência referencia o pedido, guarda o fingerprint e o JSON original, e não expira. Nenhum caminho da API apaga essa linha. Ela sobrevive a reinícios do processo.
+- Limite da garantia: no máximo um pedido por chave que ainda está no arquivo. Chave já apagada por uma versão anterior não é recriada, e `INSERT OR IGNORE` não entra na recuperação.
+- Crescimento: na ordem de 1 a 2 KB por chave no pedido de exemplo. Cerca de 200 criações por dia ficam em torno de 100 MB por ano; cerca de 2 000 por dia, em torno de 1 GB por ano, e o backup acompanha. Não há expurgo.
+- Rollback floor: depois desta versão, não voltar a publicar um binário que execute `DELETE` em `idempotency_keys`. Restaurar o arquivo SQLite é outra operação e não autoriza esse binário. Um backup anterior ao corte pode já não ter chaves; um backup posterior só é seguro com o binário que não purga.
 - Seed: 12 produtos (`p1`–`p12`) em [`src/db/seed.ts`](src/db/seed.ts) quando a tabela está vazia.
 - Status experimental do Node: a API sobe com um `ExperimentalWarning` do runtime; aceitável no MVP acadêmico.
 
@@ -306,15 +309,16 @@ Todas as respostas de erro usam o mesmo formato:
 | `npm run format:check` | Prettier, só verificando           |
 | `npm run build`        | Compila para `dist/`               |
 
-O que os 26 testes cobrem:
+O que os 41 testes cobrem:
 
-| Arquivo                       | Cobre                                                                   |
-| ----------------------------- | ----------------------------------------------------------------------- |
-| `tests/health.test.ts`        | `GET /health` responde 200 com `{ "status": "ok" }`                     |
-| `tests/error-handler.test.ts` | 404 padronizado, 400 de validação, `AppError` e 500 sem vazar o detalhe |
-| `tests/env.test.ts`           | Valores padrão e rejeição de `PORT`, `LOG_LEVEL` e `DATABASE_PATH`      |
-| `tests/products.test.ts`      | Listagem/filtros, detalhe, create, update, soft-delete e erros          |
-| `tests/orders.test.ts`        | Criação, consulta e atualização, transições, filtros e rollback         |
+| Arquivo                            | Cobre                                                                                          |
+| ---------------------------------- | ---------------------------------------------------------------------------------------------- |
+| `tests/health.test.ts`             | `GET /health` responde 200 com `{ "status": "ok" }`                                            |
+| `tests/error-handler.test.ts`      | 404 padronizado, 400 de validação, `AppError` e 500 sem vazar o detalhe                        |
+| `tests/env.test.ts`                | Valores padrão e rejeição de `PORT`, `LOG_LEVEL` e `DATABASE_PATH`                             |
+| `tests/products.test.ts`           | Listagem/filtros, detalhe, create, update, soft-delete e erros                                 |
+| `tests/orders.test.ts`             | Criação, consulta e atualização, transições, filtros e rollback                                |
+| `tests/orders-idempotency.test.ts` | Chave permanente, replay do snapshot, 409, concorrência, rollback, reinício e repetição tardia |
 
 ## 08 · CI
 
