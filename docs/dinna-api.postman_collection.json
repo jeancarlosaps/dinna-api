@@ -260,7 +260,8 @@
               {
                 "key": "Idempotency-Key",
                 "value": "550e8400-e29b-41d4-a716-446655440000",
-                "description": "Opcional. UUID da intenção de pedido. A mesma chave e o mesmo body devolvem o mesmo pedido por 24 horas."
+                "description": "Opcional e desligado. Exemplo de UUID válido. Cada intenção nova exige um UUID novo. Reutilize o UUID somente para repetir o mesmo pedido, com payload idêntico.",
+                "disabled": true
               }
             ],
             "body": {
@@ -273,7 +274,7 @@
               }
             },
             "url": "{{baseUrl}}/orders",
-            "description": "Cria pedido na mesa. Status inicial `received`. `totalCents` é calculado pela API. `Idempotency-Key` é opcional: sem ela, cada chamada cria um pedido; com a mesma chave e o mesmo body, a API devolve o pedido original por 24 horas."
+            "description": "Cria pedido na mesa. Status inicial `received`. `totalCents` é calculado pela API. `Idempotency-Key` vem desligada: sem ela, cada chamada cria um pedido. Para uma intenção nova, gere um UUID novo e habilite o header. Reutilize esse UUID somente para repetir o mesmo pedido, com o payload idêntico."
           },
           "response": []
         },

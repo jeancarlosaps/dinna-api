@@ -96,6 +96,7 @@ export function ordersRoutes(db: Db): FastifyPluginAsync {
         },
       },
       async (request, reply) => {
+        reply.header('Idempotency-Retention', 'permanent');
         const idempotencyKey = parseIdempotencyKey(request.headers['idempotency-key']);
         const order = createOrder(db, request.body, idempotencyKey);
         return reply.status(201).send(order);

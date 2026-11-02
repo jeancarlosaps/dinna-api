@@ -9,10 +9,7 @@ import type {
   UpdateOrderStatusInput,
 } from '../../db/types.js';
 import { AppError } from '../../shared/errors/app-error.js';
-import {
-  ORDER_IDEMPOTENCY_RETENTION_MS,
-  fingerprintCreateOrderInput,
-} from './order-idempotency.js';
+import { fingerprintCreateOrderInput } from './order-idempotency.js';
 
 interface ProductPriceRow {
   price_cents: number;
@@ -114,11 +111,6 @@ function isIdempotencyKeyConflict(error: unknown): boolean {
     errcode === SQLITE_CONSTRAINT_UNIQUE;
 
   return isConstraint && error instanceof Error && error.message.includes('idempotency_keys.key');
-}
-
-function purgeExpiredIdempotencyKeys(db: Db): void {
-  const cutoff = new Date(Date.now() - ORDER_IDEMPOTENCY_RETENTION_MS).toISOString();
-  db.prepare('DELETE FROM idempotency_keys WHERE created_at < ?').run(cutoff);
 }
 
 function findIdempotencyKey(db: Db, key: string): IdempotencyKeyRow | undefined {
@@ -280,6 +272,7 @@ function insertOrder(db: Db, input: CreateOrderInput, idempotencyKey?: string): 
 /**
  * Cria pedido e itens em uma única transação usando os preços atuais do cardápio.
  * Com Idempotency-Key, a chave só é gravada nessa mesma transação, depois do pedido.
+ * A linha não expira e nenhum caminho a apaga.
  * Não há registro "em andamento": o lock de escrita dura até o commit ou o rollback.
  * Se duas conexões passarem da leitura ao mesmo tempo, a PRIMARY KEY impede a segunda
  * inserção e a tentativa seguinte relê o pedido já commitado.
@@ -313,7 +306,6 @@ function runCreateOrder(db: Db, input: CreateOrderInput, idempotencyKey?: string
 }
 
 function createIdempotentOrder(db: Db, input: CreateOrderInput, idempotencyKey: string): Order {
-  purgeExpiredIdempotencyKeys(db);
   const existing = findIdempotencyKey(db, idempotencyKey);
   if (existing) {
     return replayIdempotentOrder(db, input, existing);
