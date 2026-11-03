@@ -84,7 +84,7 @@ Códigos de recurso (usados com 404/`AppError`):
 
 Lista vazia é valor válido: a composição ainda não foi cadastrada. A API não preenche esse vazio a partir de `name` ou `description`, e `GET /products?q=` continua buscando só em `name` e `description`.
 
-O cardápio de demonstração (`p1`–`p12`) permanece com `ingredients: []`. A `description` desses produtos é texto de apresentação, não uma composição cadastrada.
+No cardápio de demonstração (`p1`–`p12`), a `description` continua sendo texto de apresentação e não vira `ingredients`. O seed grava listas ilustrativas só quando a tabela nasce vazia. `p5` (Refrigerante Lata) e `p6` (Suco Natural) permanecem com `[]` porque o sabor varia. Um banco que já tem produtos não recebe essas listas na abertura.
 
 Os nomes informados servem para exibição. A API não detecta alergênicos e não emite alegação de ausência, como sem glúten ou sem lactose. A lista também não garante que o preparo esteja livre de contaminação cruzada.
 
@@ -459,7 +459,7 @@ Sugere produtos com base no cardápio real. A API **só** devolve `productId` qu
 
 - Driver: `node:sqlite` (nativo).
 - Schema aplicado na abertura com `CREATE TABLE IF NOT EXISTS` (sem runner de migrations). Um banco já existente recebe `idempotency_keys` na próxima subida.
-- Seed: `src/db/seed.ts` (`p1`–`p12`) na primeira abertura com tabela vazia. Esses produtos nascem com `ingredients: []`.
+- Seed: `src/db/seed.ts` (`p1`–`p12`) na primeira abertura com a tabela `products` vazia. Vários nascem com ingredientes ilustrativos. `p5` e `p6` nascem com `[]`. A abertura não regrava um banco que já tem produtos.
 - Soft-delete e filtros de `GET /products` seguem este contrato.
 - `idempotency_keys` guarda a chave, o fingerprint SHA-256 do body canônico, o `order_id`, `created_at` e o JSON da resposta original. A repetição do `POST` devolve essa resposta, não o pedido depois de uma mudança de status. A linha não é apagada por idade.
 
@@ -468,6 +468,8 @@ Sugere produtos com base no cardápio real. A API **só** devolve `productId` qu
 A lista não cabe numa coluna escalar já existente e não é CSV. A coluna `ingredients` é `TEXT NOT NULL DEFAULT '[]'` e guarda um JSON array de strings, na ordem do cadastro. A única conversão entre `string[]` e esse texto está em `src/modules/products/products.repository.ts`. Leitura de JSON inválido ou de lista fora das regras do contrato falha; a API não devolve `[]` no lugar.
 
 Banco criado antes da coluna recebe, na abertura seguinte, `ALTER TABLE products ADD COLUMN ingredients TEXT NOT NULL DEFAULT '[]'` se `PRAGMA table_info(products)` ainda não mostrar `ingredients`. A consulta e o `ALTER` acontecem na mesma transação `BEGIN IMMEDIATE`, para duas aberturas simultâneas não tentarem criar a coluna juntas. As linhas antigas ficam com `[]`. O arquivo não é recriado. Tabelas de pedido não mudam. O limite de 80 conta pontos de código Unicode, não unidades UTF-16.
+
+Preencher ingredientes ilustrativos num banco que já tem `p1`–`p12` não faz parte dessa abertura. `npm run demo:ingredients` só mostra a prévia. `npm run demo:ingredients -- --apply` grava apenas `ingredients`, e só nos produtos de demonstração cujo nome ainda é o do seed e cuja lista ainda está vazia.
 
 ## Próximos passos
 

@@ -133,7 +133,13 @@ describe('products', () => {
 
     const detail = await app.inject({ method: 'GET', url: '/products/p1' });
     expect(detail.statusCode).toBe(200);
-    expect(detail.json().ingredients).toEqual([]);
+    expect(detail.json().ingredients).toEqual(
+      SEED_PRODUCTS.find((product) => product.id === 'p1')?.ingredients,
+    );
+
+    const soda = await app.inject({ method: 'GET', url: '/products/p5' });
+    expect(soda.statusCode).toBe(200);
+    expect(soda.json().ingredients).toEqual([]);
   });
 
   it('cria com ingredients e também sem o campo', async () => {
