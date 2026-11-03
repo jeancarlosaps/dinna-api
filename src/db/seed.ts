@@ -3,8 +3,12 @@ import type { Product } from './types.js';
 /**
  * Cardápio inicial do Dinna (mock acadêmico). IDs estáveis para o app Flutter.
  *
- * `ingredients` fica vazio de propósito: a composição não foi cadastrada como
- * dado próprio. `description` é texto de apresentação e não é lista de ingredientes.
+ * `ingredients` é ilustração de demonstração, não composição verificada,
+ * marca ou declaração de alergênicos. `description` continua sendo texto
+ * de apresentação e não é a fonte da lista.
+ *
+ * Refrigerante e suco ficam com `[]`: o sabor varia e uma fórmula única
+ * seria falsa. Banco que já tem produtos não recebe esta lista na abertura.
  */
 export const SEED_PRODUCTS: readonly Product[] = [
   {
@@ -15,7 +19,7 @@ export const SEED_PRODUCTS: readonly Product[] = [
     priceCents: 3290,
     imageUrl: null,
     available: true,
-    ingredients: [],
+    ingredients: ['Pão brioche', 'Carne bovina', 'Queijo cheddar', 'Alface', 'Tomate'],
   },
   {
     id: 'p2',
@@ -25,7 +29,7 @@ export const SEED_PRODUCTS: readonly Product[] = [
     priceCents: 3890,
     imageUrl: null,
     available: true,
-    ingredients: [],
+    ingredients: ['Pão', 'Carne bovina', 'Bacon defumado', 'Queijo cheddar', 'Molho da casa'],
   },
   {
     id: 'p3',
@@ -35,7 +39,7 @@ export const SEED_PRODUCTS: readonly Product[] = [
     priceCents: 1890,
     imageUrl: null,
     available: true,
-    ingredients: [],
+    ingredients: ['Batata', 'Alecrim', 'Páprica', 'Óleo vegetal'],
   },
   {
     id: 'p4',
@@ -45,7 +49,7 @@ export const SEED_PRODUCTS: readonly Product[] = [
     priceCents: 2190,
     imageUrl: null,
     available: true,
-    ingredients: [],
+    ingredients: ['Cebola', 'Farinha de trigo', 'Óleo vegetal', 'Molho especial'],
   },
   {
     id: 'p5',
@@ -75,7 +79,14 @@ export const SEED_PRODUCTS: readonly Product[] = [
     priceCents: 1590,
     imageUrl: null,
     available: true,
-    ingredients: [],
+    ingredients: [
+      'Chocolate',
+      'Farinha de trigo',
+      'Ovos',
+      'Manteiga',
+      'Açúcar',
+      'Calda de chocolate',
+    ],
   },
   {
     id: 'p8',
@@ -85,7 +96,7 @@ export const SEED_PRODUCTS: readonly Product[] = [
     priceCents: 3490,
     imageUrl: null,
     available: false,
-    ingredients: [],
+    ingredients: ['Pão', 'Grão-de-bico', 'Queijo', 'Alface', 'Tomate'],
   },
   {
     id: 'p9',
@@ -95,7 +106,7 @@ export const SEED_PRODUCTS: readonly Product[] = [
     priceCents: 4290,
     imageUrl: null,
     available: true,
-    ingredients: [],
+    ingredients: ['Pão', 'Carne bovina', 'Queijo cheddar', 'Cebola'],
   },
   {
     id: 'p10',
@@ -105,7 +116,7 @@ export const SEED_PRODUCTS: readonly Product[] = [
     priceCents: 2490,
     imageUrl: null,
     available: true,
-    ingredients: [],
+    ingredients: ['Alface', 'Croutons', 'Queijo parmesão', 'Molho caesar'],
   },
   {
     id: 'p11',
@@ -115,7 +126,7 @@ export const SEED_PRODUCTS: readonly Product[] = [
     priceCents: 590,
     imageUrl: null,
     available: true,
-    ingredients: [],
+    ingredients: ['Água', 'Gás carbônico'],
   },
   {
     id: 'p12',
@@ -125,6 +136,13 @@ export const SEED_PRODUCTS: readonly Product[] = [
     priceCents: 2190,
     imageUrl: null,
     available: true,
-    ingredients: [],
+    ingredients: [
+      'Chocolate',
+      'Farinha de trigo',
+      'Ovos',
+      'Manteiga',
+      'Açúcar',
+      'Sorvete de creme',
+    ],
   },
 ];

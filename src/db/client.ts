@@ -70,6 +70,11 @@ function productsTableHasIngredients(db: Db): boolean {
   return columns.some((column) => column.name === 'ingredients');
 }
 
+/**
+ * Insere o cardápio só quando `products` está vazia.
+ * Linha já gravada não é atualizada. Ingredientes ilustrativos de um banco
+ * antigo entram por `demo:ingredients`, nunca nesta abertura.
+ */
 function seedProductsIfEmpty(db: Db): void {
   const row = db.prepare('SELECT COUNT(*) AS count FROM products').get() as unknown as {
     count: number;

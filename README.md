@@ -146,6 +146,8 @@ src/
 │   ├── client.ts            # openDatabase + seed
 │   ├── schema.ts
 │   ├── seed.ts
+│   ├── demo-ingredients.ts  # prévia e gravação dos ingredientes de demonstração
+│   ├── backfill-demo-ingredients.ts
 │   └── types.ts
 ├── modules/
 │   ├── health/
@@ -222,6 +224,34 @@ npm run build    # compila para dist/
 npm start        # roda o build compilado
 ```
 
+### Ingredientes de demonstração
+
+Os comandos abaixo rodam na raiz deste repositório. O banco padrão é o caminho relativo `data/dinna.sqlite` (`DATABASE_PATH`). Não apague esse arquivo para ver os ingredientes.
+
+**A. Banco novo.** Se `data/dinna.sqlite` ainda não existe, subir a API cria o arquivo e grava o catálogo ilustrativo:
+
+```bash
+npm run dev
+```
+
+**B. Banco de desenvolvimento que já existe.** A abertura da API não altera produtos já gravados. A prévia não escreve e não muda o schema; `--apply` grava só `ingredients` dos produtos `p1`–`p12` cujo nome ainda é o do seed e cuja lista ainda está vazia:
+
+```bash
+npm run demo:ingredients
+npm run demo:ingredients -- --apply
+```
+
+`NODE_ENV=production` recusa o `--apply`, sem exceção por argumento. O próximo `GET` lê o arquivo já atualizado. Se o erro for `database is locked`, pare a API e rode o `--apply` de novo. Se a mensagem disser que falta a coluna `products.ingredients`, suba a API uma vez para aplicar a migração já existente e rode o comando outra vez.
+
+**C. Conferir um produto e o estado vazio:**
+
+```bash
+curl -s http://localhost:3333/products/p1
+curl -s http://localhost:3333/products/p5
+```
+
+`p1` devolve a lista ilustrativa. `p5` (Refrigerante Lata) permanece com `"ingredients": []`.
+
 ### Health check
 
 ```bash
@@ -290,7 +320,7 @@ Todas as respostas de erro usam o mesmo formato:
 - Limite da garantia: ela depende da preservação contínua da linha da chave no SQLite. Enquanto a linha existir, a mesma chave não cria outro pedido. Uma chave apagada por uma versão anterior não é reconstruída. Um novo `POST` com essa chave ausente segue o caminho de uma intenção nova: um payload aceito cria outro pedido, mesmo que o pedido original permaneça no banco. `INSERT OR IGNORE` não entra na recuperação.
 - Crescimento: na ordem de 1 a 2 KB por chave no pedido de exemplo. Cerca de 200 criações por dia ficam em torno de 100 MB por ano; cerca de 2 000 por dia, em torno de 1 GB por ano, e o backup acompanha. Não há expurgo.
 - Rollback floor: depois desta versão, não voltar a publicar um binário que execute `DELETE` em `idempotency_keys`. Restaurar o arquivo SQLite é outra operação e não autoriza esse binário. Um backup anterior ao corte pode já não ter chaves; um backup posterior só é seguro com o binário que não purga.
-- Seed: 12 produtos (`p1`–`p12`) em [`src/db/seed.ts`](src/db/seed.ts) quando a tabela está vazia.
+- Seed: 12 produtos (`p1`–`p12`) em [`src/db/seed.ts`](src/db/seed.ts) quando a tabela está vazia. Ingredientes ilustrativos de um arquivo já existente entram com `npm run demo:ingredients -- --apply`, sem apagar o SQLite.
 - Status experimental do Node: a API sobe com um `ExperimentalWarning` do runtime; aceitável no MVP acadêmico.
 
 > Não confunda com a **persistência local do app Flutter** (carrinho, preferências, último pedido), que é a SCRUM-27. São responsabilidades diferentes.
@@ -299,15 +329,16 @@ Todas as respostas de erro usam o mesmo formato:
 
 ## 07 · Testes e qualidade
 
-| Comando                | O que faz                          |
-| ---------------------- | ---------------------------------- |
-| `npm test`             | Vitest (`vitest run`)              |
-| `npm run test:watch`   | Vitest em modo watch               |
-| `npm run lint`         | ESLint                             |
-| `npm run typecheck`    | `tsc --noEmit`                     |
-| `npm run format`       | Prettier, reescrevendo os arquivos |
-| `npm run format:check` | Prettier, só verificando           |
-| `npm run build`        | Compila para `dist/`               |
+| Comando                    | O que faz                                                |
+| -------------------------- | -------------------------------------------------------- |
+| `npm test`                 | Vitest (`vitest run`)                                    |
+| `npm run test:watch`       | Vitest em modo watch                                     |
+| `npm run demo:ingredients` | Prévia dos ingredientes de demonstração; `--apply` grava |
+| `npm run lint`             | ESLint                                                   |
+| `npm run typecheck`        | `tsc --noEmit`                                           |
+| `npm run format`           | Prettier, reescrevendo os arquivos                       |
+| `npm run format:check`     | Prettier, só verificando                                 |
+| `npm run build`            | Compila para `dist/`                                     |
 
 O que os 43 testes cobrem:
 
