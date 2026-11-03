@@ -7,7 +7,9 @@ CREATE TABLE IF NOT EXISTS products (
   category TEXT NOT NULL,
   price_cents INTEGER NOT NULL CHECK (price_cents >= 0),
   image_url TEXT,
-  available INTEGER NOT NULL DEFAULT 1 CHECK (available IN (0, 1))
+  available INTEGER NOT NULL DEFAULT 1 CHECK (available IN (0, 1)),
+  -- JSON array de nomes, na ordem cadastrada. Não é CSV. A conversão fica no repositório.
+  ingredients TEXT NOT NULL DEFAULT '[]'
 );
 
 CREATE TABLE IF NOT EXISTS orders (

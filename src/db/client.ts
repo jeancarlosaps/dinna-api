@@ -1,6 +1,7 @@
 import { mkdirSync } from 'node:fs';
 import { dirname } from 'node:path';
 import { DatabaseSync } from 'node:sqlite';
+import { insertProduct } from '../modules/products/products.repository.js';
 import { SCHEMA_SQL } from './schema.js';
 import { SEED_PRODUCTS } from './seed.js';
 
@@ -31,12 +32,42 @@ export function openDatabase(options: OpenDatabaseOptions): Db {
   db.exec('PRAGMA foreign_keys = ON');
   db.exec(`PRAGMA busy_timeout = ${SQLITE_BUSY_TIMEOUT_MS}`);
   db.exec(SCHEMA_SQL);
+  ensureProductIngredientsColumn(db);
 
   if (seed) {
     seedProductsIfEmpty(db);
   }
 
   return db;
+}
+
+/**
+ * `CREATE TABLE IF NOT EXISTS` não adiciona coluna em banco já existente.
+ * A coluna guarda um JSON array. Produtos antigos passam a `[]` pelo DEFAULT,
+ * sem recriar o arquivo e sem alterar pedidos.
+ *
+ * `BEGIN IMMEDIATE` segura o lock de escrita. Sem isso, duas aberturas do mesmo
+ * banco antigo podem ver a coluna ausente e a segunda quebra com
+ * "duplicate column name".
+ */
+function ensureProductIngredientsColumn(db: Db): void {
+  db.exec('BEGIN IMMEDIATE');
+  try {
+    if (!productsTableHasIngredients(db)) {
+      db.exec("ALTER TABLE products ADD COLUMN ingredients TEXT NOT NULL DEFAULT '[]'");
+    }
+    db.exec('COMMIT');
+  } catch (error) {
+    db.exec('ROLLBACK');
+    throw error;
+  }
+}
+
+function productsTableHasIngredients(db: Db): boolean {
+  const columns = db.prepare('PRAGMA table_info(products)').all() as unknown as Array<{
+    name: string;
+  }>;
+  return columns.some((column) => column.name === 'ingredients');
 }
 
 function seedProductsIfEmpty(db: Db): void {
@@ -47,23 +78,10 @@ function seedProductsIfEmpty(db: Db): void {
     return;
   }
 
-  const insert = db.prepare(`
-    INSERT INTO products (id, name, description, category, price_cents, image_url, available)
-    VALUES (?, ?, ?, ?, ?, ?, ?)
-  `);
-
   db.exec('BEGIN');
   try {
     for (const product of SEED_PRODUCTS) {
-      insert.run(
-        product.id,
-        product.name,
-        product.description,
-        product.category,
-        product.priceCents,
-        product.imageUrl,
-        product.available ? 1 : 0,
-      );
+      insertProduct(db, product);
     }
     db.exec('COMMIT');
   } catch (error) {

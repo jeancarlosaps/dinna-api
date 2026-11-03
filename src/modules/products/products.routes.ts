@@ -3,6 +3,9 @@ import type { Db } from '../../db/client.js';
 import type { ProductInput, ProductListQuery } from '../../db/types.js';
 import { AppError } from '../../shared/errors/app-error.js';
 import {
+  MAX_PRODUCT_INGREDIENT_LENGTH,
+  MAX_PRODUCT_INGREDIENTS,
+  PRODUCT_INGREDIENT_PATTERN,
   createProduct,
   getProductById,
   listProducts,
@@ -18,6 +21,15 @@ const productProperties = {
   priceCents: { type: 'integer', minimum: 0 },
   imageUrl: { type: ['string', 'null'] },
   available: { type: 'boolean' },
+  ingredients: {
+    type: 'array',
+    maxItems: MAX_PRODUCT_INGREDIENTS,
+    items: {
+      type: 'string',
+      minLength: 1,
+      pattern: PRODUCT_INGREDIENT_PATTERN,
+    },
+  },
 } as const;
 
 const productBodySchema = {
@@ -31,14 +43,56 @@ const productBodySchema = {
     priceCents: { type: 'integer', minimum: 0 },
     imageUrl: { type: ['string', 'null'], maxLength: 2048 },
     available: { type: 'boolean' },
+    ingredients: productProperties.ingredients,
   },
 } as const;
 
 const productResponseSchema = {
   type: 'object',
-  required: ['id', 'name', 'description', 'category', 'priceCents', 'imageUrl', 'available'],
+  required: [
+    'id',
+    'name',
+    'description',
+    'category',
+    'priceCents',
+    'imageUrl',
+    'available',
+    'ingredients',
+  ],
   properties: productProperties,
 } as const;
+
+/**
+ * O Ajv do Fastify usa `coerceTypes: 'array'` e transformaria a string `"Pão"`
+ * em `["Pão"]`, ou o número `1` em `"1"`, antes do schema recusar o tipo.
+ * O contrato não aceita essa coerção. Esta checagem vê o body ainda cru.
+ */
+function rejectCoercedIngredients(body: unknown): void {
+  if (typeof body !== 'object' || body === null || !Object.hasOwn(body, 'ingredients')) {
+    return;
+  }
+
+  const ingredients = (body as { ingredients: unknown }).ingredients;
+  if (!Array.isArray(ingredients) || ingredients.some((item) => typeof item !== 'string')) {
+    throw new AppError(400, 'VALIDATION_ERROR', 'ingredients deve ser uma lista de strings');
+  }
+  if (ingredients.length > MAX_PRODUCT_INGREDIENTS) {
+    throw new AppError(
+      400,
+      'VALIDATION_ERROR',
+      `ingredients aceita no máximo ${MAX_PRODUCT_INGREDIENTS} itens`,
+    );
+  }
+  for (const [index, item] of ingredients.entries()) {
+    if ([...item].length > MAX_PRODUCT_INGREDIENT_LENGTH) {
+      throw new AppError(
+        400,
+        'VALIDATION_ERROR',
+        `ingredients[${index}] deve ter no máximo ${MAX_PRODUCT_INGREDIENT_LENGTH} pontos de código Unicode`,
+      );
+    }
+  }
+}
 
 export function productsRoutes(db: Db): FastifyPluginAsync {
   return async function registerProducts(app: FastifyInstance): Promise<void> {
@@ -102,6 +156,9 @@ export function productsRoutes(db: Db): FastifyPluginAsync {
             201: productResponseSchema,
           },
         },
+        preValidation: async (request) => {
+          rejectCoercedIngredients(request.body);
+        },
       },
       async (request, reply) => {
         const product = createProduct(db, request.body);
@@ -122,6 +179,9 @@ export function productsRoutes(db: Db): FastifyPluginAsync {
           response: {
             200: productResponseSchema,
           },
+        },
+        preValidation: async (request) => {
+          rejectCoercedIngredients(request.body);
         },
       },
       async (request) => {
