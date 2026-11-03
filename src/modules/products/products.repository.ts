@@ -16,6 +16,8 @@ export const MAX_PRODUCT_INGREDIENT_LENGTH = 80;
 export const PRODUCT_INGREDIENT_PATTERN = '^\\S(?:.*\\S)?$';
 
 const ingredientNamePattern = new RegExp(PRODUCT_INGREDIENT_PATTERN, 'u');
+/** Controle, formato invisível e demais categorias Other. Não altera letra, número, acento ou emoji. */
+const disallowedIngredientCharacter = /\p{C}/u;
 
 interface ProductRow {
   id: string;
@@ -55,7 +57,8 @@ function isIngredientName(value: unknown): value is string {
     typeof value === 'string' &&
     unicodeLength(value) >= 1 &&
     unicodeLength(value) <= MAX_PRODUCT_INGREDIENT_LENGTH &&
-    ingredientNamePattern.test(value)
+    ingredientNamePattern.test(value) &&
+    !disallowedIngredientCharacter.test(value)
   );
 }
 

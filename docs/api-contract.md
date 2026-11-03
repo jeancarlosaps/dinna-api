@@ -80,7 +80,7 @@ Códigos de recurso (usados com 404/`AppError`):
 | `available`   | `boolean`  | sim                     | `false` = indisponível / soft-delete                                                                      |
 | `ingredients` | `string[]` | sim                     | Nomes na ordem e na grafia cadastradas. Máx. 30 itens de 1–80 pontos de código Unicode. Ver regras abaixo |
 
-`ingredients` é uma lista ordenada. A API não deduplica, não reordena e não altera maiúsculas, acentos ou espaços internos. Cada item é uma string com ao menos um caractere visível, sem espaço no início ou no fim. String vazia, string só com espaços, `null`, número ou objeto são `400 VALIDATION_ERROR`. Uma string no lugar da lista não vira lista de um item, e um número não vira texto.
+`ingredients` é uma lista ordenada. A API não deduplica, não reordena e não altera maiúsculas, acentos ou espaços internos. Cada item é uma string com ao menos um caractere visível, sem espaço no início ou no fim. Caractere de controle ou de formato invisível, como espaço de largura zero, é recusado; a grafia visível não é reescrita. String vazia, string só com espaços, `null`, número ou objeto são `400 VALIDATION_ERROR`. Uma string no lugar da lista não vira lista de um item, e um número não vira texto.
 
 Lista vazia é valor válido: a composição ainda não foi cadastrada. A API não preenche esse vazio a partir de `name` ou `description`, e `GET /products?q=` continua buscando só em `name` e `description`.
 

@@ -283,6 +283,8 @@ describe('products', () => {
       { ingredients: [1] },
       { ingredients: [''] },
       { ingredients: [' '] },
+      { ingredients: ['\u200B'] },
+      { ingredients: ['\u0000'] },
       { ingredients: [' Pão'] },
       { ingredients: ['Pão '] },
       { ingredients: ['a'.repeat(81)] },
