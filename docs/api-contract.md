@@ -469,7 +469,7 @@ A lista não cabe numa coluna escalar já existente e não é CSV. A coluna `ing
 
 Banco criado antes da coluna recebe, na abertura seguinte, `ALTER TABLE products ADD COLUMN ingredients TEXT NOT NULL DEFAULT '[]'` se `PRAGMA table_info(products)` ainda não mostrar `ingredients`. A consulta e o `ALTER` acontecem na mesma transação `BEGIN IMMEDIATE`, para duas aberturas simultâneas não tentarem criar a coluna juntas. As linhas antigas ficam com `[]`. O arquivo não é recriado. Tabelas de pedido não mudam. O limite de 80 conta pontos de código Unicode, não unidades UTF-16.
 
-Preencher ingredientes ilustrativos num banco que já tem `p1`–`p12` não faz parte dessa abertura. `npm run demo:ingredients` só mostra a prévia. `npm run demo:ingredients -- --apply` grava apenas `ingredients`, e só nos produtos de demonstração cujo nome ainda é o do seed e cuja lista ainda está vazia.
+Preencher ingredientes ilustrativos num banco que já tem `p1`–`p12` não faz parte dessa abertura. `npm run demo:ingredients` só mostra a prévia e não altera o schema. `npm run demo:ingredients -- --apply` grava apenas `ingredients`, e só nos produtos de demonstração cujo nome ainda é o do seed e cuja lista ainda está vazia. Se a coluna ainda não existe, o comando recusa: a migração continua sendo a abertura da API.
 
 ## Próximos passos
 

@@ -12,6 +12,7 @@ import {
   backfillDemoIngredients,
   DemoIngredientsRefusedError,
   DemoIngredientsUsageError,
+  openDemoIngredientsDatabase,
   parseDemoIngredientArgs,
   type DemoIngredientReport,
 } from '../src/db/demo-ingredients.js';
@@ -91,6 +92,19 @@ function insertEmptySeedProduct(db: Db, product: Product, ingredients = '[]'): v
     product.available ? 1 : 0,
     ingredients,
   );
+}
+
+function createRawDatabase(setup: (db: DatabaseSync) => void): string {
+  const directory = mkdtempSync(join(tmpdir(), 'dinna-demo-ingredients-'));
+  directories.push(directory);
+  const path = join(directory, 'dinna.sqlite');
+  const db = new DatabaseSync(path);
+  try {
+    setup(db);
+  } finally {
+    db.close();
+  }
+  return path;
 }
 
 function createDatabase(setup: (db: Db) => void): string {
@@ -428,33 +442,21 @@ describe('ingredientes ilustrativos do cardápio de demonstração', () => {
       });
       expect(preview.updates.map((update) => update.id)).toEqual(['p1']);
       expect(snapshot(path)).toEqual(before);
-
-      const applied = backfillDemoIngredients(db, {
-        apply: true,
-        allowProduction: true,
-        env: { NODE_ENV: 'production' },
-      });
-      expect(applied.updates).toHaveLength(1);
     } finally {
       db.close();
     }
 
-    expect(snapshot(path).products[0]?.ingredients).toBe(
-      JSON.stringify(seedById('p1').ingredients),
-    );
+    expect(snapshot(path).products[0]?.ingredients).toBe('[]');
   });
 
   it('recusa argumentos e caminhos que não devem gravar', () => {
-    expect(parseDemoIngredientArgs([])).toEqual({ apply: false, allowProduction: false });
-    expect(parseDemoIngredientArgs(['--dry-run'])).toEqual({
-      apply: false,
-      allowProduction: false,
-    });
-    expect(parseDemoIngredientArgs(['--apply', '--allow-production'])).toEqual({
-      apply: true,
-      allowProduction: true,
-    });
+    expect(parseDemoIngredientArgs([])).toEqual({ apply: false });
+    expect(parseDemoIngredientArgs(['--dry-run'])).toEqual({ apply: false });
+    expect(parseDemoIngredientArgs(['--apply'])).toEqual({ apply: true });
     expect(() => parseDemoIngredientArgs(['--apply', '--dry-run'])).toThrow(
+      DemoIngredientsUsageError,
+    );
+    expect(() => parseDemoIngredientArgs(['--allow-production'])).toThrow(
       DemoIngredientsUsageError,
     );
     expect(() => parseDemoIngredientArgs(['--force'])).toThrow(DemoIngredientsUsageError);
@@ -489,6 +491,14 @@ describe('ingredientes ilustrativos do cardápio de demonstração', () => {
     expect(blocked.stderr).toContain('NODE_ENV=production');
     expect(snapshot(path).products.find((product) => product.id === 'p1')?.ingredients).toBe('[]');
 
+    const bypass = runBackfill(['--apply', '--allow-production'], {
+      ...env,
+      NODE_ENV: 'production',
+    });
+    expect(bypass.status).toBe(1);
+    expect(bypass.stderr).toContain('Argumento desconhecido');
+    expect(snapshot(path).products.find((product) => product.id === 'p1')?.ingredients).toBe('[]');
+
     const applied = runBackfill(['--apply'], env);
     expect(applied.status).toBe(0);
     expect(applied.stdout).toContain('Modo: aplicado');
@@ -500,5 +510,60 @@ describe('ingredientes ilustrativos do cardápio de demonstração', () => {
     const again = runBackfill(['--apply'], env);
     expect(again.status).toBe(0);
     expect(again.stdout).toContain('Atualizados: 0');
+  });
+
+  it('prévia e gravação recusam banco sem a coluna e não migram o schema', () => {
+    const path = createRawDatabase((raw) => {
+      raw.exec(`
+        CREATE TABLE products (
+          id TEXT PRIMARY KEY NOT NULL,
+          name TEXT NOT NULL,
+          description TEXT NOT NULL,
+          category TEXT NOT NULL,
+          price_cents INTEGER NOT NULL,
+          image_url TEXT,
+          available INTEGER NOT NULL
+        );
+      `);
+      raw
+        .prepare(
+          `INSERT INTO products (id, name, description, category, price_cents, image_url, available)
+           VALUES (?, ?, ?, ?, ?, ?, ?)`,
+        )
+        .run(
+          'p1',
+          'Burger Clássico',
+          'Pão brioche, blend 180g, queijo cheddar e salada',
+          'burgers',
+          3290,
+          null,
+          1,
+        );
+    });
+
+    expect(() => openDemoIngredientsDatabase(path, true)).toThrow(DemoIngredientsUsageError);
+    expect(() => openDemoIngredientsDatabase(path, false)).toThrow(DemoIngredientsUsageError);
+
+    const env = { DATABASE_PATH: path, NODE_ENV: 'development', PORT: '3333' };
+    const preview = runBackfill([], env);
+    const applied = runBackfill(['--apply'], env);
+    expect(preview.status).toBe(1);
+    expect(applied.status).toBe(1);
+    expect(preview.stderr).toContain('não criam tabela nem coluna');
+    expect(applied.stderr).toContain('não criam tabela nem coluna');
+
+    const db = new DatabaseSync(path, { readOnly: true });
+    try {
+      const columns = db.prepare('PRAGMA table_info(products)').all() as unknown as Array<{
+        name: string;
+      }>;
+      const tables = db
+        .prepare("SELECT name FROM sqlite_master WHERE type = 'table' ORDER BY name")
+        .all();
+      expect(columns.some((column) => column.name === 'ingredients')).toBe(false);
+      expect(tables).toEqual([{ name: 'products' }]);
+    } finally {
+      db.close();
+    }
   });
 });

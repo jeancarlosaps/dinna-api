@@ -234,14 +234,14 @@ Os comandos abaixo rodam na raiz deste repositório. O banco padrão é o caminh
 npm run dev
 ```
 
-**B. Banco de desenvolvimento que já existe.** A abertura da API não altera produtos já gravados. A prévia não escreve; `--apply` grava só `ingredients` dos produtos `p1`–`p12` cujo nome ainda é o do seed e cuja lista ainda está vazia:
+**B. Banco de desenvolvimento que já existe.** A abertura da API não altera produtos já gravados. A prévia não escreve e não muda o schema; `--apply` grava só `ingredients` dos produtos `p1`–`p12` cujo nome ainda é o do seed e cuja lista ainda está vazia:
 
 ```bash
 npm run demo:ingredients
 npm run demo:ingredients -- --apply
 ```
 
-`NODE_ENV=production` recusa o `--apply`. O próximo `GET` lê o arquivo já atualizado. Se o erro for `database is locked`, pare a API e rode o `--apply` de novo.
+`NODE_ENV=production` recusa o `--apply`, sem exceção por argumento. O próximo `GET` lê o arquivo já atualizado. Se o erro for `database is locked`, pare a API e rode o `--apply` de novo. Se a mensagem disser que falta a coluna `products.ingredients`, suba a API uma vez para aplicar a migração já existente e rode o comando outra vez.
 
 **C. Conferir um produto e o estado vazio:**
 

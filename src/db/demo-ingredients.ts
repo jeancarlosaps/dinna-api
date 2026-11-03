@@ -1,3 +1,4 @@
+import { DatabaseSync } from 'node:sqlite';
 import { productIngredientsToColumn } from '../modules/products/products.repository.js';
 import type { Db } from './client.js';
 import { SEED_PRODUCTS } from './seed.js';
@@ -26,7 +27,6 @@ export class DemoIngredientsRefusedError extends Error {
 
 export interface DemoIngredientCommand {
   apply: boolean;
-  allowProduction: boolean;
 }
 
 export type DemoIngredientSkipReason =
@@ -54,9 +54,38 @@ export interface DemoIngredientReport {
 
 export interface BackfillDemoIngredientsOptions {
   apply: boolean;
-  /** Única forma de gravar com NODE_ENV=production. A prévia não usa isto. */
-  allowProduction?: boolean;
   env?: NodeJS.ProcessEnv;
+}
+
+const SCHEMA_REFUSAL =
+  'O arquivo não tem a coluna products.ingredients. Suba a API uma vez para aplicar a migração já existente e rode este comando de novo. A prévia e o --apply não criam tabela nem coluna.';
+
+/** Abre o arquivo sem schema e sem seed. A prévia fica somente leitura. */
+export function openDemoIngredientsDatabase(path: string, readOnly: boolean): Db {
+  const db = new DatabaseSync(path, { readOnly, timeout: 5_000 });
+  try {
+    assertDemoIngredientsSchema(db);
+  } catch (error) {
+    db.close();
+    throw error;
+  }
+  return db;
+}
+
+export function assertDemoIngredientsSchema(db: Db): void {
+  const table = db
+    .prepare("SELECT 1 AS ok FROM sqlite_master WHERE type = 'table' AND name = 'products'")
+    .get() as unknown as { ok: number } | undefined;
+  if (!table) {
+    throw new DemoIngredientsUsageError(SCHEMA_REFUSAL);
+  }
+
+  const columns = db.prepare('PRAGMA table_info(products)').all() as unknown as Array<{
+    name: string;
+  }>;
+  if (!columns.some((column) => column.name === 'ingredients')) {
+    throw new DemoIngredientsUsageError(SCHEMA_REFUSAL);
+  }
 }
 
 interface ProductIdentityRow {
@@ -68,15 +97,12 @@ interface ProductIdentityRow {
 export function parseDemoIngredientArgs(argv: readonly string[]): DemoIngredientCommand {
   let apply = false;
   let dryRun = false;
-  let allowProduction = false;
 
   for (const arg of argv) {
     if (arg === '--apply') {
       apply = true;
     } else if (arg === '--dry-run') {
       dryRun = true;
-    } else if (arg === '--allow-production') {
-      allowProduction = true;
     } else {
       throw new DemoIngredientsUsageError(
         `Argumento desconhecido: ${arg}. Use --dry-run ou --apply.`,
@@ -88,7 +114,7 @@ export function parseDemoIngredientArgs(argv: readonly string[]): DemoIngredient
     throw new DemoIngredientsUsageError('Use só um modo: --dry-run ou --apply.');
   }
 
-  return { apply, allowProduction };
+  return { apply };
 }
 
 export function assertDemoIngredientsDatabasePath(databasePath: string): void {
@@ -101,9 +127,9 @@ export function assertDemoIngredientsDatabasePath(databasePath: string): void {
 
 export function assertDemoIngredientsApplyAllowed(
   env: NodeJS.ProcessEnv,
-  options: { apply: boolean; allowProduction?: boolean },
+  options: { apply: boolean },
 ): void {
-  if (options.apply && env.NODE_ENV === 'production' && options.allowProduction !== true) {
+  if (options.apply && env.NODE_ENV === 'production') {
     throw new DemoIngredientsRefusedError(
       'Backfill de demonstração recusado com NODE_ENV=production. Nada foi gravado.',
     );
@@ -138,9 +164,11 @@ export function backfillDemoIngredients(
     started = true;
 
     const select = db.prepare('SELECT id, name, ingredients FROM products WHERE id = ?');
-    const update = db.prepare(
-      'UPDATE products SET ingredients = ? WHERE id = ? AND name = ? AND ingredients = ?',
-    );
+    const update = options.apply
+      ? db.prepare(
+          'UPDATE products SET ingredients = ? WHERE id = ? AND name = ? AND ingredients = ?',
+        )
+      : undefined;
 
     for (const seed of SEED_PRODUCTS) {
       const row = select.get(seed.id) as unknown as ProductIdentityRow | undefined;
@@ -177,8 +205,8 @@ export function backfillDemoIngredients(
 
       const column = productIngredientsToColumn(seed.ingredients);
       if (options.apply) {
-        const result = update.run(column, seed.id, seed.name, row.ingredients);
-        if (Number(result.changes) !== 1) {
+        const result = update?.run(column, seed.id, seed.name, row.ingredients);
+        if (Number(result?.changes) !== 1) {
           throw new Error(`não foi possível atualizar ingredients de ${seed.id}`);
         }
       }

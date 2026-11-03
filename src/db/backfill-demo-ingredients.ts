@@ -1,12 +1,13 @@
 import { existsSync } from 'node:fs';
 import { loadEnv } from '../config/env.js';
-import { openDatabase, type Db } from './client.js';
+import type { Db } from './client.js';
 import {
   assertDemoIngredientsApplyAllowed,
   assertDemoIngredientsDatabasePath,
   backfillDemoIngredients,
   DemoIngredientsRefusedError,
   DemoIngredientsUsageError,
+  openDemoIngredientsDatabase,
   parseDemoIngredientArgs,
   type DemoIngredientReport,
   type DemoIngredientSkipReason,
@@ -18,7 +19,8 @@ import {
  *   npm run demo:ingredients
  *   npm run demo:ingredients -- --apply
  *
- * A prévia é o padrão. --apply grava. NODE_ENV=production recusa a gravação.
+ * A prévia é o padrão e abre o arquivo somente leitura, sem migração.
+ * --apply grava só ingredients. NODE_ENV=production recusa a gravação.
  */
 
 const SKIP_LABELS: Record<DemoIngredientSkipReason, string> = {
@@ -70,11 +72,8 @@ async function main(): Promise<number> {
       );
     }
 
-    db = openDatabase({ path: env.databasePath, seed: false });
-    const report = backfillDemoIngredients(db, {
-      apply: command.apply,
-      allowProduction: command.allowProduction,
-    });
+    db = openDemoIngredientsDatabase(env.databasePath, !command.apply);
+    const report = backfillDemoIngredients(db, { apply: command.apply });
     printReport(env.databasePath, report);
     return 0;
   } catch (error) {
