@@ -211,26 +211,39 @@ export function updateProduct(db: Db, id: string, input: ProductInput): Product 
   const ingredientsColumn =
     input.ingredients === undefined ? null : productIngredientsToColumn(input.ingredients);
 
-  const row = db
-    .prepare(
-      `UPDATE products
-       SET name = ?, description = ?, category = ?, price_cents = ?, image_url = ?, available = ?,
-           ingredients = COALESCE(?, ingredients)
-       WHERE id = ?
-       RETURNING ${productColumns}`,
-    )
-    .get(
-      input.name,
-      input.description,
-      input.category,
-      input.priceCents,
-      input.imageUrl ?? null,
-      (input.available ?? true) ? 1 : 0,
-      ingredientsColumn,
-      id,
-    ) as unknown as ProductRow | undefined;
+  db.exec('BEGIN IMMEDIATE');
+  try {
+    const row = db
+      .prepare(
+        `UPDATE products
+         SET name = ?, description = ?, category = ?, price_cents = ?, image_url = ?, available = ?,
+             ingredients = COALESCE(?, ingredients)
+         WHERE id = ?
+         RETURNING ${productColumns}`,
+      )
+      .get(
+        input.name,
+        input.description,
+        input.category,
+        input.priceCents,
+        input.imageUrl ?? null,
+        (input.available ?? true) ? 1 : 0,
+        ingredientsColumn,
+        id,
+      ) as unknown as ProductRow | undefined;
 
-  return row ? mapRow(row) : undefined;
+    if (!row) {
+      db.exec('ROLLBACK');
+      return undefined;
+    }
+
+    const product = mapRow(row);
+    db.exec('COMMIT');
+    return product;
+  } catch (error) {
+    db.exec('ROLLBACK');
+    throw error;
+  }
 }
 
 /** Soft-delete: marca available = 0. Idempotente se já estiver indisponível. */

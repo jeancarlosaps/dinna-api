@@ -272,6 +272,43 @@ describe('migração de ingredients em banco já existente', () => {
     expect(results).toEqual([{ ok: true }, { ok: true }]);
   });
 
+  it('não confirma outro campo quando a lista persistida é inválida', async () => {
+    const path = createLegacyDatabase();
+    await openApp(path);
+    await app?.close();
+    app = undefined;
+
+    const db = new DatabaseSync(path);
+    db.prepare('UPDATE products SET ingredients = ? WHERE id = ?').run('[" "]', 'p_legacy');
+    db.close();
+
+    const currentApp = await openApp(path);
+    const updated = await currentApp.inject({
+      method: 'PUT',
+      url: '/products/p_legacy',
+      payload: {
+        name: 'Nome novo',
+        description: 'Descrição já gravada',
+        category: 'burgers',
+        priceCents: 2600,
+        available: true,
+      },
+    });
+    expect(updated.statusCode).toBe(500);
+    await currentApp.close();
+    app = undefined;
+
+    const check = new DatabaseSync(path);
+    const row = check
+      .prepare('SELECT name, price_cents FROM products WHERE id = ?')
+      .get('p_legacy') as {
+      name: string;
+      price_cents: number;
+    };
+    check.close();
+    expect(row).toEqual({ name: 'Prato antigo', price_cents: 2500 });
+  });
+
   it('não transforma JSON persistido inválido em lista vazia', async () => {
     const path = createLegacyDatabase();
     await openApp(path);
