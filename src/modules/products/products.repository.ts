@@ -16,8 +16,21 @@ export const MAX_PRODUCT_INGREDIENT_LENGTH = 80;
 export const PRODUCT_INGREDIENT_PATTERN = '^\\S(?:.*\\S)?$';
 
 const ingredientNamePattern = new RegExp(PRODUCT_INGREDIENT_PATTERN, 'u');
-/** Controle, formato invisível e demais categorias Other. Não altera letra, número, acento ou emoji. */
-const disallowedIngredientCharacter = /\p{C}/u;
+const controlOrFormat = /[\p{Cc}\p{Cf}]/u;
+const visibleIngredientCharacter = /[\p{L}\p{N}\p{P}\p{S}]/u;
+
+/** U+200D junta emojis. Os outros controles e formatos, como U+200B, continuam proibidos. */
+function hasDisallowedIngredientCharacter(value: string): boolean {
+  for (const char of value) {
+    if (char === '\u200D') {
+      continue;
+    }
+    if (controlOrFormat.test(char)) {
+      return true;
+    }
+  }
+  return false;
+}
 
 interface ProductRow {
   id: string;
@@ -58,7 +71,8 @@ function isIngredientName(value: unknown): value is string {
     unicodeLength(value) >= 1 &&
     unicodeLength(value) <= MAX_PRODUCT_INGREDIENT_LENGTH &&
     ingredientNamePattern.test(value) &&
-    !disallowedIngredientCharacter.test(value)
+    visibleIngredientCharacter.test(value) &&
+    !hasDisallowedIngredientCharacter(value)
   );
 }
 

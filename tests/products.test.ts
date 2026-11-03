@@ -249,15 +249,15 @@ describe('products', () => {
         description: 'Apresentação',
         category: 'burgers',
         priceCents: 1000,
-        ingredients: [accepted],
+        ingredients: [accepted, 'Cogumelo 👩‍🍳'],
       },
     });
     expect(created.statusCode).toBe(201);
-    expect(created.json().ingredients).toEqual([accepted]);
+    expect(created.json().ingredients).toEqual([accepted, 'Cogumelo 👩‍🍳']);
 
     const detail = await app.inject({ method: 'GET', url: `/products/${created.json().id}` });
     expect(detail.statusCode).toBe(200);
-    expect(detail.json().ingredients).toEqual([accepted]);
+    expect(detail.json().ingredients).toEqual([accepted, 'Cogumelo 👩‍🍳']);
 
     const invalid = await app.inject({
       method: 'POST',
@@ -284,6 +284,7 @@ describe('products', () => {
       { ingredients: [''] },
       { ingredients: [' '] },
       { ingredients: ['\u200B'] },
+      { ingredients: ['\u200D'] },
       { ingredients: ['\u0000'] },
       { ingredients: [' Pão'] },
       { ingredients: ['Pão '] },
