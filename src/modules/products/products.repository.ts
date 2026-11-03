@@ -116,17 +116,6 @@ function ingredientsForCreate(input: ProductInput): string[] {
   return assertIngredients(input.ingredients ?? []);
 }
 
-/**
- * Campo ausente não apaga a lista de um cliente que ainda não envia `ingredients`.
- * `[]` explícito substitui pela lista vazia. Os demais campos não passam por aqui.
- */
-function ingredientsForUpdate(input: ProductInput, existing: Product): string[] {
-  if (input.ingredients === undefined) {
-    return existing.ingredients;
-  }
-  return assertIngredients(input.ingredients);
-}
-
 const productColumns =
   'id, name, description, category, price_cents, image_url, available, ingredients';
 
@@ -200,38 +189,31 @@ export function createProduct(db: Db, input: ProductInput): Product {
 }
 
 export function updateProduct(db: Db, id: string, input: ProductInput): Product | undefined {
-  const existing = getProductById(db, id);
-  if (!existing) {
-    return undefined;
-  }
+  // NULL faz o UPDATE manter a coluna. Gravar a lista lida antes perderia
+  // uma composição salva por outro PUT entre a leitura e a escrita.
+  const ingredientsColumn =
+    input.ingredients === undefined ? null : productIngredientsToColumn(input.ingredients);
 
-  const updated: Product = {
-    id,
-    name: input.name,
-    description: input.description,
-    category: input.category,
-    priceCents: input.priceCents,
-    imageUrl: input.imageUrl ?? null,
-    available: input.available ?? true,
-    ingredients: ingredientsForUpdate(input, existing),
-  };
+  const row = db
+    .prepare(
+      `UPDATE products
+       SET name = ?, description = ?, category = ?, price_cents = ?, image_url = ?, available = ?,
+           ingredients = COALESCE(?, ingredients)
+       WHERE id = ?
+       RETURNING ${productColumns}`,
+    )
+    .get(
+      input.name,
+      input.description,
+      input.category,
+      input.priceCents,
+      input.imageUrl ?? null,
+      (input.available ?? true) ? 1 : 0,
+      ingredientsColumn,
+      id,
+    ) as unknown as ProductRow | undefined;
 
-  db.prepare(
-    `UPDATE products
-     SET name = ?, description = ?, category = ?, price_cents = ?, image_url = ?, available = ?, ingredients = ?
-     WHERE id = ?`,
-  ).run(
-    updated.name,
-    updated.description,
-    updated.category,
-    updated.priceCents,
-    updated.imageUrl,
-    updated.available ? 1 : 0,
-    productIngredientsToColumn(updated.ingredients),
-    id,
-  );
-
-  return updated;
+  return row ? mapRow(row) : undefined;
 }
 
 /** Soft-delete: marca available = 0. Idempotente se já estiver indisponível. */

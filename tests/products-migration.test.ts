@@ -38,6 +38,38 @@ CREATE TABLE order_items (
 );
 `;
 
+function updateProductInWorker(
+  databasePath: string,
+  payload: Record<string, unknown>,
+): Promise<{ statusCode: number; body: { ingredients?: string[] } }> {
+  return new Promise((resolve, reject) => {
+    const worker = new Worker(
+      pathToFileURL(join(process.cwd(), 'tests/helpers/update-product-worker.ts')),
+      {
+        execArgv: ['--import', 'tsx'],
+        workerData: { databasePath, productId: 'p_legacy', payload },
+      },
+    );
+    let result: { statusCode: number; body: { ingredients?: string[] } } | undefined;
+
+    worker.on('message', (message: { statusCode: number; body: { ingredients?: string[] } }) => {
+      result = message;
+    });
+    worker.on('error', reject);
+    worker.on('exit', (code) => {
+      if (code !== 0) {
+        reject(new Error(`worker encerrou com código ${code}`));
+        return;
+      }
+      if (!result) {
+        reject(new Error('worker encerrou sem resultado'));
+        return;
+      }
+      resolve(result);
+    });
+  });
+}
+
 function openDatabaseInWorker(databasePath: string): Promise<{ ok: boolean; message?: string }> {
   return new Promise((resolve, reject) => {
     const worker = new Worker(
@@ -187,6 +219,49 @@ describe('migração de ingredients em banco já existente', () => {
     const orders = await reopened.inject({ method: 'GET', url: '/orders' });
     expect(orders.statusCode).toBe(200);
     expect(orders.json()[0].id).toBe('o_legacy');
+  });
+
+  it('não deixa um PUT sem ingredients regravar uma composição concorrente', async () => {
+    const path = createLegacyDatabase();
+    const currentApp = await openApp(path);
+    const seeded = await currentApp.inject({
+      method: 'PUT',
+      url: '/products/p_legacy',
+      payload: {
+        name: 'Prato antigo',
+        description: 'Descrição já gravada',
+        category: 'burgers',
+        priceCents: 2500,
+        available: true,
+        ingredients: ['Pão'],
+      },
+    });
+    expect(seeded.statusCode).toBe(200);
+    await currentApp.close();
+    app = undefined;
+
+    const base = {
+      description: 'Descrição já gravada',
+      category: 'burgers',
+      priceCents: 2500,
+      available: true,
+    };
+    const [withIngredients, omitted] = await Promise.all([
+      updateProductInWorker(path, {
+        ...base,
+        name: 'Composto',
+        ingredients: ['Queijo cheddar'],
+      }),
+      updateProductInWorker(path, { ...base, name: 'Renomeado' }),
+    ]);
+
+    expect(withIngredients.statusCode).toBe(200);
+    expect(omitted.statusCode).toBe(200);
+
+    const reopened = await openApp(path);
+    const detail = await reopened.inject({ method: 'GET', url: '/products/p_legacy' });
+    expect(detail.statusCode).toBe(200);
+    expect(detail.json().ingredients).toEqual(['Queijo cheddar']);
   });
 
   it('abre o banco antigo em paralelo sem falhar na coluna nova', async () => {

@@ -248,6 +248,8 @@ Substitui os campos editáveis enviados. O body tem o mesmo formato da criação
 | `[]`            | Substitui por lista vazia                    |
 | Lista com nomes | Substitui pela lista enviada, na mesma ordem |
 
+Campo ausente não regrava uma lista lida antes do `UPDATE`. O `UPDATE` mantém o valor que estiver na coluna na hora da escrita e a resposta devolve esse valor.
+
 Os outros campos não mudam de semântica. `imageUrl` omitido grava `null`. `available` omitido grava `true`. `name`, `description`, `category` e `priceCents` continuam obrigatórios e substituem o valor anterior.
 
 **200 OK** — `Product` atualizado, sempre com `ingredients`.  
