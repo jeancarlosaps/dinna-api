@@ -45,16 +45,29 @@ export function openDatabase(options: OpenDatabaseOptions): Db {
  * `CREATE TABLE IF NOT EXISTS` não adiciona coluna em banco já existente.
  * A coluna guarda um JSON array. Produtos antigos passam a `[]` pelo DEFAULT,
  * sem recriar o arquivo e sem alterar pedidos.
+ *
+ * `BEGIN IMMEDIATE` segura o lock de escrita. Sem isso, duas aberturas do mesmo
+ * banco antigo podem ver a coluna ausente e a segunda quebra com
+ * "duplicate column name".
  */
 function ensureProductIngredientsColumn(db: Db): void {
+  db.exec('BEGIN IMMEDIATE');
+  try {
+    if (!productsTableHasIngredients(db)) {
+      db.exec("ALTER TABLE products ADD COLUMN ingredients TEXT NOT NULL DEFAULT '[]'");
+    }
+    db.exec('COMMIT');
+  } catch (error) {
+    db.exec('ROLLBACK');
+    throw error;
+  }
+}
+
+function productsTableHasIngredients(db: Db): boolean {
   const columns = db.prepare('PRAGMA table_info(products)').all() as unknown as Array<{
     name: string;
   }>;
-  if (columns.some((column) => column.name === 'ingredients')) {
-    return;
-  }
-
-  db.exec("ALTER TABLE products ADD COLUMN ingredients TEXT NOT NULL DEFAULT '[]'");
+  return columns.some((column) => column.name === 'ingredients');
 }
 
 function seedProductsIfEmpty(db: Db): void {

@@ -27,7 +27,6 @@ const productProperties = {
     items: {
       type: 'string',
       minLength: 1,
-      maxLength: MAX_PRODUCT_INGREDIENT_LENGTH,
       pattern: PRODUCT_INGREDIENT_PATTERN,
     },
   },
@@ -74,10 +73,24 @@ function rejectCoercedIngredients(body: unknown): void {
   }
 
   const ingredients = (body as { ingredients: unknown }).ingredients;
-  const itemsAreStrings =
-    Array.isArray(ingredients) && ingredients.every((item) => typeof item === 'string');
-  if (!itemsAreStrings) {
+  if (!Array.isArray(ingredients) || ingredients.some((item) => typeof item !== 'string')) {
     throw new AppError(400, 'VALIDATION_ERROR', 'ingredients deve ser uma lista de strings');
+  }
+  if (ingredients.length > MAX_PRODUCT_INGREDIENTS) {
+    throw new AppError(
+      400,
+      'VALIDATION_ERROR',
+      `ingredients aceita no máximo ${MAX_PRODUCT_INGREDIENTS} itens`,
+    );
+  }
+  for (const [index, item] of ingredients.entries()) {
+    if ([...item].length > MAX_PRODUCT_INGREDIENT_LENGTH) {
+      throw new AppError(
+        400,
+        'VALIDATION_ERROR',
+        `ingredients[${index}] deve ter no máximo ${MAX_PRODUCT_INGREDIENT_LENGTH} pontos de código Unicode`,
+      );
+    }
   }
 }
 

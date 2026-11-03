@@ -45,11 +45,16 @@ function newProductId(): string {
   return `p_${randomBytes(4).toString('hex')}`;
 }
 
+/** O schema JSON conta pontos de código. `string.length` conta unidades UTF-16. */
+function unicodeLength(value: string): number {
+  return [...value].length;
+}
+
 function isIngredientName(value: unknown): value is string {
   return (
     typeof value === 'string' &&
-    value.length >= 1 &&
-    value.length <= MAX_PRODUCT_INGREDIENT_LENGTH &&
+    unicodeLength(value) >= 1 &&
+    unicodeLength(value) <= MAX_PRODUCT_INGREDIENT_LENGTH &&
     ingredientNamePattern.test(value)
   );
 }

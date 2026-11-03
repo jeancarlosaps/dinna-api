@@ -1,6 +1,8 @@
 import { mkdtempSync, rmSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
+import { pathToFileURL } from 'node:url';
+import { Worker } from 'node:worker_threads';
 import { DatabaseSync } from 'node:sqlite';
 import { afterEach, describe, expect, it } from 'vitest';
 import type { FastifyInstance } from 'fastify';
@@ -35,6 +37,32 @@ CREATE TABLE order_items (
   FOREIGN KEY (product_id) REFERENCES products(id)
 );
 `;
+
+function openDatabaseInWorker(databasePath: string): Promise<{ ok: boolean; message?: string }> {
+  return new Promise((resolve, reject) => {
+    const worker = new Worker(
+      pathToFileURL(join(process.cwd(), 'tests/helpers/open-database-worker.ts')),
+      { execArgv: ['--import', 'tsx'], workerData: { databasePath } },
+    );
+    let result: { ok: boolean; message?: string } | undefined;
+
+    worker.on('message', (message: { ok: boolean; message?: string }) => {
+      result = message;
+    });
+    worker.on('error', reject);
+    worker.on('exit', (code) => {
+      if (code !== 0) {
+        reject(new Error(`worker encerrou com código ${code}`));
+        return;
+      }
+      if (!result) {
+        reject(new Error('worker encerrou sem resultado'));
+        return;
+      }
+      resolve(result);
+    });
+  });
+}
 
 describe('migração de ingredients em banco já existente', () => {
   const directories: string[] = [];
@@ -159,6 +187,14 @@ describe('migração de ingredients em banco já existente', () => {
     const orders = await reopened.inject({ method: 'GET', url: '/orders' });
     expect(orders.statusCode).toBe(200);
     expect(orders.json()[0].id).toBe('o_legacy');
+  });
+
+  it('abre o banco antigo em paralelo sem falhar na coluna nova', async () => {
+    const path = createLegacyDatabase();
+
+    const results = await Promise.all([openDatabaseInWorker(path), openDatabaseInWorker(path)]);
+
+    expect(results).toEqual([{ ok: true }, { ok: true }]);
   });
 
   it('não transforma JSON persistido inválido em lista vazia', async () => {

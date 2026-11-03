@@ -69,16 +69,16 @@ Códigos de recurso (usados com 404/`AppError`):
 }
 ```
 
-| Campo         | Tipo       | Obrigatório na resposta | Notas                                                                                       |
-| ------------- | ---------- | ----------------------- | ------------------------------------------------------------------------------------------- |
-| `id`          | `string`   | sim                     | Gerado pela API na criação                                                                  |
-| `name`        | `string`   | sim                     | 1–120 caracteres                                                                            |
-| `description` | `string`   | sim                     | Pode ser `""`; máx. 2000. Não é lista de ingredientes                                       |
-| `category`    | `string`   | sim                     | Slug livre (ex.: `burgers`, `bebidas`)                                                      |
-| `priceCents`  | `number`   | sim                     | Inteiro ≥ 0                                                                                 |
-| `imageUrl`    | `string`   | sim                     | URI; `null` se sem imagem                                                                   |
-| `available`   | `boolean`  | sim                     | `false` = indisponível / soft-delete                                                        |
-| `ingredients` | `string[]` | sim                     | Nomes na ordem e na grafia cadastradas. Máx. 30 itens de 1–80 caracteres. Ver regras abaixo |
+| Campo         | Tipo       | Obrigatório na resposta | Notas                                                                                                     |
+| ------------- | ---------- | ----------------------- | --------------------------------------------------------------------------------------------------------- |
+| `id`          | `string`   | sim                     | Gerado pela API na criação                                                                                |
+| `name`        | `string`   | sim                     | 1–120 caracteres                                                                                          |
+| `description` | `string`   | sim                     | Pode ser `""`; máx. 2000. Não é lista de ingredientes                                                     |
+| `category`    | `string`   | sim                     | Slug livre (ex.: `burgers`, `bebidas`)                                                                    |
+| `priceCents`  | `number`   | sim                     | Inteiro ≥ 0                                                                                               |
+| `imageUrl`    | `string`   | sim                     | URI; `null` se sem imagem                                                                                 |
+| `available`   | `boolean`  | sim                     | `false` = indisponível / soft-delete                                                                      |
+| `ingredients` | `string[]` | sim                     | Nomes na ordem e na grafia cadastradas. Máx. 30 itens de 1–80 pontos de código Unicode. Ver regras abaixo |
 
 `ingredients` é uma lista ordenada. A API não deduplica, não reordena e não altera maiúsculas, acentos ou espaços internos. Cada item é uma string com ao menos um caractere visível, sem espaço no início ou no fim. String vazia, string só com espaços, `null`, número ou objeto são `400 VALIDATION_ERROR`. Uma string no lugar da lista não vira lista de um item, e um número não vira texto.
 
@@ -465,7 +465,7 @@ Sugere produtos com base no cardápio real. A API **só** devolve `productId` qu
 
 A lista não cabe numa coluna escalar já existente e não é CSV. A coluna `ingredients` é `TEXT NOT NULL DEFAULT '[]'` e guarda um JSON array de strings, na ordem do cadastro. A única conversão entre `string[]` e esse texto está em `src/modules/products/products.repository.ts`. Leitura de JSON inválido ou de lista fora das regras do contrato falha; a API não devolve `[]` no lugar.
 
-Banco criado antes da coluna recebe, na abertura seguinte, `ALTER TABLE products ADD COLUMN ingredients TEXT NOT NULL DEFAULT '[]'` se `PRAGMA table_info(products)` ainda não mostrar `ingredients`. As linhas antigas ficam com `[]`. O arquivo não é recriado. Tabelas de pedido não mudam.
+Banco criado antes da coluna recebe, na abertura seguinte, `ALTER TABLE products ADD COLUMN ingredients TEXT NOT NULL DEFAULT '[]'` se `PRAGMA table_info(products)` ainda não mostrar `ingredients`. A consulta e o `ALTER` acontecem na mesma transação `BEGIN IMMEDIATE`, para duas aberturas simultâneas não tentarem criar a coluna juntas. As linhas antigas ficam com `[]`. O arquivo não é recriado. Tabelas de pedido não mudam. O limite de 80 conta pontos de código Unicode, não unidades UTF-16.
 
 ## Próximos passos
 

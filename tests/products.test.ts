@@ -232,6 +232,48 @@ describe('products', () => {
     expect(cleared.json().ingredients).toEqual([]);
   });
 
+  it('aceita 80 pontos de código Unicode e rejeita o 81º', async () => {
+    app = buildApp();
+
+    const accepted = `${'a'.repeat(79)}🥖`;
+    const rejected = `${'a'.repeat(80)}🥖`;
+    expect([...accepted].length).toBe(80);
+    expect(accepted.length).toBe(81);
+    expect([...rejected].length).toBe(81);
+
+    const created = await app.inject({
+      method: 'POST',
+      url: '/products',
+      payload: {
+        name: 'Com emoji',
+        description: 'Apresentação',
+        category: 'burgers',
+        priceCents: 1000,
+        ingredients: [accepted],
+      },
+    });
+    expect(created.statusCode).toBe(201);
+    expect(created.json().ingredients).toEqual([accepted]);
+
+    const detail = await app.inject({ method: 'GET', url: `/products/${created.json().id}` });
+    expect(detail.statusCode).toBe(200);
+    expect(detail.json().ingredients).toEqual([accepted]);
+
+    const invalid = await app.inject({
+      method: 'POST',
+      url: '/products',
+      payload: {
+        name: 'Emoji a mais',
+        description: 'Apresentação',
+        category: 'burgers',
+        priceCents: 1000,
+        ingredients: [rejected],
+      },
+    });
+    expect(invalid.statusCode).toBe(400);
+    expect(invalid.json()).toMatchObject({ error: { code: 'VALIDATION_ERROR' } });
+  });
+
   it('rejeita ingredients fora do contrato', async () => {
     app = buildApp();
 
