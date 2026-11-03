@@ -1,6 +1,11 @@
 import type { Product } from './types.js';
 
-/** Cardápio inicial do Dinna (mock acadêmico). IDs estáveis para o app Flutter. */
+/**
+ * Cardápio inicial do Dinna (mock acadêmico). IDs estáveis para o app Flutter.
+ *
+ * `ingredients` fica vazio de propósito: a composição não foi cadastrada como
+ * dado próprio. `description` é texto de apresentação e não é lista de ingredientes.
+ */
 export const SEED_PRODUCTS: readonly Product[] = [
   {
     id: 'p1',
@@ -10,6 +15,7 @@ export const SEED_PRODUCTS: readonly Product[] = [
     priceCents: 3290,
     imageUrl: null,
     available: true,
+    ingredients: [],
   },
   {
     id: 'p2',
@@ -19,6 +25,7 @@ export const SEED_PRODUCTS: readonly Product[] = [
     priceCents: 3890,
     imageUrl: null,
     available: true,
+    ingredients: [],
   },
   {
     id: 'p3',
@@ -28,6 +35,7 @@ export const SEED_PRODUCTS: readonly Product[] = [
     priceCents: 1890,
     imageUrl: null,
     available: true,
+    ingredients: [],
   },
   {
     id: 'p4',
@@ -37,6 +45,7 @@ export const SEED_PRODUCTS: readonly Product[] = [
     priceCents: 2190,
     imageUrl: null,
     available: true,
+    ingredients: [],
   },
   {
     id: 'p5',
@@ -46,6 +55,7 @@ export const SEED_PRODUCTS: readonly Product[] = [
     priceCents: 790,
     imageUrl: null,
     available: true,
+    ingredients: [],
   },
   {
     id: 'p6',
@@ -55,6 +65,7 @@ export const SEED_PRODUCTS: readonly Product[] = [
     priceCents: 1290,
     imageUrl: null,
     available: true,
+    ingredients: [],
   },
   {
     id: 'p7',
@@ -64,6 +75,7 @@ export const SEED_PRODUCTS: readonly Product[] = [
     priceCents: 1590,
     imageUrl: null,
     available: true,
+    ingredients: [],
   },
   {
     id: 'p8',
@@ -73,6 +85,7 @@ export const SEED_PRODUCTS: readonly Product[] = [
     priceCents: 3490,
     imageUrl: null,
     available: false,
+    ingredients: [],
   },
   {
     id: 'p9',
@@ -82,6 +95,7 @@ export const SEED_PRODUCTS: readonly Product[] = [
     priceCents: 4290,
     imageUrl: null,
     available: true,
+    ingredients: [],
   },
   {
     id: 'p10',
@@ -91,6 +105,7 @@ export const SEED_PRODUCTS: readonly Product[] = [
     priceCents: 2490,
     imageUrl: null,
     available: true,
+    ingredients: [],
   },
   {
     id: 'p11',
@@ -100,6 +115,7 @@ export const SEED_PRODUCTS: readonly Product[] = [
     priceCents: 590,
     imageUrl: null,
     available: true,
+    ingredients: [],
   },
   {
     id: 'p12',
@@ -109,5 +125,6 @@ export const SEED_PRODUCTS: readonly Product[] = [
     priceCents: 2190,
     imageUrl: null,
     available: true,
+    ingredients: [],
   },
 ];

@@ -7,6 +7,8 @@ export interface Product {
   priceCents: number;
   imageUrl: string | null;
   available: boolean;
+  /** Nomes na ordem informada. Lista vazia significa composição não cadastrada. */
+  ingredients: string[];
 }
 
 export interface ProductInput {
@@ -16,6 +18,11 @@ export interface ProductInput {
   priceCents: number;
   imageUrl?: string | null;
   available?: boolean;
+  /**
+   * Ausente na criação grava `[]`. Ausente na atualização preserva a lista
+   * já persistida. `[]` explícito grava lista vazia.
+   */
+  ingredients?: string[];
 }
 
 export interface ProductListQuery {

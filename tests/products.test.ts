@@ -121,4 +121,151 @@ describe('products', () => {
     expect(missing.statusCode).toBe(404);
     expect(missing.json()).toMatchObject({ error: { code: 'PRODUCT_NOT_FOUND' } });
   });
+
+  it('devolve ingredients na listagem e no detalhe', async () => {
+    app = buildApp();
+
+    const list = await app.inject({ method: 'GET', url: '/products' });
+    expect(list.statusCode).toBe(200);
+    expect(
+      list.json().every((product: { ingredients: unknown }) => Array.isArray(product.ingredients)),
+    ).toBe(true);
+
+    const detail = await app.inject({ method: 'GET', url: '/products/p1' });
+    expect(detail.statusCode).toBe(200);
+    expect(detail.json().ingredients).toEqual([]);
+  });
+
+  it('cria com ingredients e também sem o campo', async () => {
+    app = buildApp();
+
+    const created = await app.inject({
+      method: 'POST',
+      url: '/products',
+      payload: {
+        name: 'Prato da casa',
+        description: 'Texto de apresentação',
+        category: 'burgers',
+        priceCents: 2590,
+        ingredients: ['Pão', 'Queijo cheddar', 'Pão'],
+      },
+    });
+    expect(created.statusCode).toBe(201);
+    expect(created.json().ingredients).toEqual(['Pão', 'Queijo cheddar', 'Pão']);
+
+    const omitted = await app.inject({
+      method: 'POST',
+      url: '/products',
+      payload: {
+        name: 'Sem composição',
+        description: 'Pão, queijo e salada',
+        category: 'burgers',
+        priceCents: 1000,
+      },
+    });
+    expect(omitted.statusCode).toBe(201);
+    expect(omitted.json().ingredients).toEqual([]);
+    expect(omitted.json().description).toBe('Pão, queijo e salada');
+  });
+
+  it('substitui, preserva ou limpa ingredients conforme o body do PUT', async () => {
+    app = buildApp();
+
+    const created = await app.inject({
+      method: 'POST',
+      url: '/products',
+      payload: {
+        name: 'Prato',
+        description: 'Apresentação',
+        category: 'burgers',
+        priceCents: 1500,
+        ingredients: ['Pão', 'Queijo cheddar'],
+      },
+    });
+    const id = created.json().id as string;
+
+    const preserved = await app.inject({
+      method: 'PUT',
+      url: `/products/${id}`,
+      payload: {
+        name: 'Prato renomeado',
+        description: 'Apresentação nova',
+        category: 'burgers',
+        priceCents: 1600,
+        available: true,
+      },
+    });
+    expect(preserved.statusCode).toBe(200);
+    expect(preserved.json()).toMatchObject({
+      id,
+      name: 'Prato renomeado',
+      priceCents: 1600,
+      ingredients: ['Pão', 'Queijo cheddar'],
+    });
+
+    const replaced = await app.inject({
+      method: 'PUT',
+      url: `/products/${id}`,
+      payload: {
+        name: 'Prato renomeado',
+        description: 'Apresentação nova',
+        category: 'burgers',
+        priceCents: 1600,
+        ingredients: ['Molho'],
+      },
+    });
+    expect(replaced.statusCode).toBe(200);
+    expect(replaced.json().ingredients).toEqual(['Molho']);
+
+    const cleared = await app.inject({
+      method: 'PUT',
+      url: `/products/${id}`,
+      payload: {
+        name: 'Prato renomeado',
+        description: 'Apresentação nova',
+        category: 'burgers',
+        priceCents: 1600,
+        ingredients: [],
+      },
+    });
+    expect(cleared.statusCode).toBe(200);
+    expect(cleared.json().ingredients).toEqual([]);
+  });
+
+  it('rejeita ingredients fora do contrato', async () => {
+    app = buildApp();
+
+    const payloads: Record<string, unknown>[] = [
+      { ingredients: 'Pão' },
+      { ingredients: null },
+      { ingredients: [1] },
+      { ingredients: [''] },
+      { ingredients: [' '] },
+      { ingredients: [' Pão'] },
+      { ingredients: ['Pão '] },
+      { ingredients: ['a'.repeat(81)] },
+      { ingredients: Array.from({ length: 31 }, () => 'Pão') },
+    ];
+
+    for (const extra of payloads) {
+      const response = await app.inject({
+        method: 'POST',
+        url: '/products',
+        payload: {
+          name: 'Inválido',
+          description: 'Não deve gravar',
+          category: 'burgers',
+          priceCents: 100,
+          ...extra,
+        },
+      });
+      expect(response.statusCode, JSON.stringify(extra)).toBe(400);
+      expect(response.json()).toMatchObject({ error: { code: 'VALIDATION_ERROR' } });
+    }
+
+    const list = await app.inject({ method: 'GET', url: '/products' });
+    expect(list.json().some((product: { name: string }) => product.name === 'Inválido')).toBe(
+      false,
+    );
+  });
 });

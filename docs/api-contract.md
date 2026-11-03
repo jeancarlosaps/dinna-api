@@ -64,19 +64,35 @@ Códigos de recurso (usados com 404/`AppError`):
   "category": "burgers",
   "priceCents": 3290,
   "imageUrl": "https://example.com/burger.jpg",
-  "available": true
+  "available": true,
+  "ingredients": []
 }
 ```
 
-| Campo         | Tipo      | Obrigatório    | Notas                                  |
-| ------------- | --------- | -------------- | -------------------------------------- |
-| `id`          | `string`  | sim (resposta) | Gerado pela API na criação             |
-| `name`        | `string`  | sim            | 1–120 caracteres                       |
-| `description` | `string`  | sim            | Pode ser `""`; máx. 2000               |
-| `category`    | `string`  | sim            | Slug livre (ex.: `burgers`, `bebidas`) |
-| `priceCents`  | `number`  | sim            | Inteiro ≥ 0                            |
-| `imageUrl`    | `string`  | não            | URI; omitido ou `null` se sem imagem   |
-| `available`   | `boolean` | sim            | `false` = indisponível / soft-delete   |
+| Campo         | Tipo       | Obrigatório na resposta | Notas                                                                                       |
+| ------------- | ---------- | ----------------------- | ------------------------------------------------------------------------------------------- |
+| `id`          | `string`   | sim                     | Gerado pela API na criação                                                                  |
+| `name`        | `string`   | sim                     | 1–120 caracteres                                                                            |
+| `description` | `string`   | sim                     | Pode ser `""`; máx. 2000. Não é lista de ingredientes                                       |
+| `category`    | `string`   | sim                     | Slug livre (ex.: `burgers`, `bebidas`)                                                      |
+| `priceCents`  | `number`   | sim                     | Inteiro ≥ 0                                                                                 |
+| `imageUrl`    | `string`   | sim                     | URI; `null` se sem imagem                                                                   |
+| `available`   | `boolean`  | sim                     | `false` = indisponível / soft-delete                                                        |
+| `ingredients` | `string[]` | sim                     | Nomes na ordem e na grafia cadastradas. Máx. 30 itens de 1–80 caracteres. Ver regras abaixo |
+
+`ingredients` é uma lista ordenada. A API não deduplica, não reordena e não altera maiúsculas, acentos ou espaços internos. Cada item é uma string com ao menos um caractere visível, sem espaço no início ou no fim. String vazia, string só com espaços, `null`, número ou objeto são `400 VALIDATION_ERROR`. Uma string no lugar da lista não vira lista de um item, e um número não vira texto.
+
+Lista vazia é valor válido: a composição ainda não foi cadastrada. A API não preenche esse vazio a partir de `name` ou `description`, e `GET /products?q=` continua buscando só em `name` e `description`.
+
+O cardápio de demonstração (`p1`–`p12`) permanece com `ingredients: []`. A `description` desses produtos é texto de apresentação, não uma composição cadastrada.
+
+Os nomes informados servem para exibição. A API não detecta alergênicos e não emite alegação de ausência, como sem glúten ou sem lactose. A lista também não garante que o preparo esteja livre de contaminação cruzada.
+
+Exemplo só de formato, distinto do cardápio de demonstração:
+
+```json
+"ingredients": ["Pão", "Queijo cheddar"]
+```
 
 ### OrderItem
 
@@ -197,7 +213,7 @@ GET /products?category=burgers&available=true
 
 ### `POST /products`
 
-Cria produto. O `id` é gerado pela API. `available` default `true` se omitido.
+Cria produto. O `id` é gerado pela API. `available` default `true` se omitido. `ingredients` omitido grava `[]`. `ingredients: []` também grava lista vazia. A lista enviada é persistida na mesma ordem.
 
 **Body**
 
@@ -208,20 +224,33 @@ Cria produto. O `id` é gerado pela API. `available` default `true` se omitido.
   "category": "burgers",
   "priceCents": 3290,
   "imageUrl": "https://example.com/burger.jpg",
-  "available": true
+  "available": true,
+  "ingredients": ["Pão", "Queijo cheddar"]
 }
 ```
 
-**201 Created** — `Product` completo.  
+O array acima ilustra o formato do campo. Não é a composição cadastrada de `p1`.
+
+**201 Created** — `Product` completo, sempre com `ingredients`.  
 **400** — `VALIDATION_ERROR`.
 
 ---
 
 ### `PUT /products/:id`
 
-Substitui os campos editáveis do produto. Body igual ao de criação (sem `id`).
+Substitui os campos editáveis enviados. O body tem o mesmo formato da criação, sem `id`.
 
-**200 OK** — `Product` atualizado.  
+`ingredients` é a exceção à substituição integral, para um cliente que ainda não envia o campo não apagar a lista já gravada:
+
+| Body            | Efeito em `ingredients`                      |
+| --------------- | -------------------------------------------- |
+| Campo ausente   | Mantém a lista persistida                    |
+| `[]`            | Substitui por lista vazia                    |
+| Lista com nomes | Substitui pela lista enviada, na mesma ordem |
+
+Os outros campos não mudam de semântica. `imageUrl` omitido grava `null`. `available` omitido grava `true`. `name`, `description`, `category` e `priceCents` continuam obrigatórios e substituem o valor anterior.
+
+**200 OK** — `Product` atualizado, sempre com `ingredients`.  
 **404** — `PRODUCT_NOT_FOUND`.  
 **400** — `VALIDATION_ERROR`.
 
@@ -404,6 +433,7 @@ Sugere produtos com base no cardápio real. A API **só** devolve `productId` qu
 5. Transições de status só em um passo; salto inválido → `409 INVALID_STATUS_TRANSITION`.
 6. `POST /orders` rejeita produtos inexistentes ou indisponíveis com `PRODUCT_NOT_FOUND`.
 7. `totalCents` calculado no servidor na criação; não é enviado pelo cliente.
+8. `ingredients` é `string[]` ordenado. Omissão na criação grava `[]`. Omissão no `PUT` preserva a lista. `[]` explícito limpa. `description` não é fonte dessa lista.
 
 ## Idempotência de `POST /orders` (SCRUM-89)
 
@@ -427,9 +457,15 @@ Sugere produtos com base no cardápio real. A API **só** devolve `productId` qu
 
 - Driver: `node:sqlite` (nativo).
 - Schema aplicado na abertura com `CREATE TABLE IF NOT EXISTS` (sem runner de migrations). Um banco já existente recebe `idempotency_keys` na próxima subida.
-- Seed: `src/db/seed.ts` (`p1`–`p12`) na primeira abertura com tabela vazia.
+- Seed: `src/db/seed.ts` (`p1`–`p12`) na primeira abertura com tabela vazia. Esses produtos nascem com `ingredients: []`.
 - Soft-delete e filtros de `GET /products` seguem este contrato.
 - `idempotency_keys` guarda a chave, o fingerprint SHA-256 do body canônico, o `order_id`, `created_at` e o JSON da resposta original. A repetição do `POST` devolve essa resposta, não o pedido depois de uma mudança de status. A linha não é apagada por idade.
+
+### Coluna `products.ingredients`
+
+A lista não cabe numa coluna escalar já existente e não é CSV. A coluna `ingredients` é `TEXT NOT NULL DEFAULT '[]'` e guarda um JSON array de strings, na ordem do cadastro. A única conversão entre `string[]` e esse texto está em `src/modules/products/products.repository.ts`. Leitura de JSON inválido ou de lista fora das regras do contrato falha; a API não devolve `[]` no lugar.
+
+Banco criado antes da coluna recebe, na abertura seguinte, `ALTER TABLE products ADD COLUMN ingredients TEXT NOT NULL DEFAULT '[]'` se `PRAGMA table_info(products)` ainda não mostrar `ingredients`. As linhas antigas ficam com `[]`. O arquivo não é recriado. Tabelas de pedido não mudam.
 
 ## Próximos passos
 
