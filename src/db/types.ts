@@ -42,15 +42,29 @@ export interface UpdateOrderStatusInput {
   status: OrderStatus;
 }
 
-export interface OrderItem {
+/** Item no body de `POST /orders` — só referência ao cardápio. */
+export interface CreateOrderItemInput {
   productId: string;
   quantity: number;
   note?: string;
 }
 
+/**
+ * Item na resposta de pedido.
+ * `name` / preços são snapshot do cardápio no momento da criação.
+ */
+export interface OrderItem {
+  productId: string;
+  name: string;
+  quantity: number;
+  unitPriceCents: number;
+  lineTotalCents: number;
+  note?: string;
+}
+
 export interface CreateOrderInput {
   table: string;
-  items: OrderItem[];
+  items: CreateOrderItemInput[];
 }
 
 export interface Order {

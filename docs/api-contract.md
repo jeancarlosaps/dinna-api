@@ -94,7 +94,7 @@ Exemplo só de formato, distinto do cardápio de demonstração:
 "ingredients": ["Pão", "Queijo cheddar"]
 ```
 
-### OrderItem
+### OrderItem (body de `POST /orders`)
 
 ```json
 { "productId": "p1", "quantity": 2, "note": "sem cebola" }
@@ -106,6 +106,30 @@ Exemplo só de formato, distinto do cardápio de demonstração:
 | `quantity`  | `number` | sim         | Inteiro seguro ≥ 1; total precisa caber em centavos exatos |
 | `note`      | `string` | não         | Máx. 200; observação do cliente                            |
 
+### OrderItem (resposta)
+
+Snapshot do cardápio no momento da criação. Não muda se o produto for editado depois.
+
+```json
+{
+  "productId": "p1",
+  "name": "Burger Clássico",
+  "quantity": 2,
+  "unitPriceCents": 3290,
+  "lineTotalCents": 6580,
+  "note": "sem cebola"
+}
+```
+
+| Campo            | Tipo     | Obrigatório | Notas                                |
+| ---------------- | -------- | ----------- | ------------------------------------ |
+| `productId`      | `string` | sim         | Referência ao produto                |
+| `name`           | `string` | sim         | Nome no momento da criação           |
+| `quantity`       | `number` | sim         | Inteiro ≥ 1                          |
+| `unitPriceCents` | `number` | sim         | Preço unitário (centavos) na criação |
+| `lineTotalCents` | `number` | sim         | `unitPriceCents × quantity`          |
+| `note`           | `string` | não         | Observação do cliente                |
+
 ### Order
 
 ```json
@@ -113,20 +137,29 @@ Exemplo só de formato, distinto do cardápio de demonstração:
   "id": "o1",
   "table": "12",
   "status": "received",
-  "items": [{ "productId": "p1", "quantity": 2, "note": "sem cebola" }],
+  "items": [
+    {
+      "productId": "p1",
+      "name": "Burger Clássico",
+      "quantity": 2,
+      "unitPriceCents": 3290,
+      "lineTotalCents": 6580,
+      "note": "sem cebola"
+    }
+  ],
   "totalCents": 6580,
   "createdAt": "2026-10-16T18:00:00Z"
 }
 ```
 
-| Campo        | Tipo          | Obrigatório    | Notas                                              |
-| ------------ | ------------- | -------------- | -------------------------------------------------- |
-| `id`         | `string`      | sim (resposta) | Gerado pela API                                    |
-| `table`      | `string`      | sim            | Identificador da mesa (ex.: `"12"`)                |
-| `status`     | `string`      | sim            | Ver ciclo abaixo                                   |
-| `items`      | `OrderItem[]` | sim            | Mín. 1 item                                        |
-| `totalCents` | `number`      | sim (resposta) | Soma `priceCents × quantity` no momento da criação |
-| `createdAt`  | `string`      | sim (resposta) | ISO-8601 UTC                                       |
+| Campo        | Tipo          | Obrigatório    | Notas                                           |
+| ------------ | ------------- | -------------- | ----------------------------------------------- |
+| `id`         | `string`      | sim (resposta) | Gerado pela API                                 |
+| `table`      | `string`      | sim            | Identificador da mesa (ex.: `"12"`)             |
+| `status`     | `string`      | sim            | Ver ciclo abaixo                                |
+| `items`      | `OrderItem[]` | sim            | Mín. 1 item (resposta enriquecida)              |
+| `totalCents` | `number`      | sim (resposta) | Soma dos `lineTotalCents` no momento da criação |
+| `createdAt`  | `string`      | sim (resposta) | ISO-8601 UTC                                    |
 
 #### Ciclo de status
 
@@ -161,7 +194,8 @@ Qualquer outro salto ou regressão → `409 INVALID_STATUS_TRANSITION`.
 | `POST`   | `/products`          | R0/R1   | **Implementado**      | Restaurante                              |
 | `PUT`    | `/products/:id`      | R0/R1   | **Implementado**      | Restaurante                              |
 | `DELETE` | `/products/:id`      | R0/R1   | **Implementado**      | Restaurante (soft-delete)                |
-| `GET`    | `/orders`            | R1      | Contrato              | Restaurante (fila)                       |
+| `GET`    | `/orders`            | R1      | **Implementado**      | Restaurante (fila)                       |
+| `GET`    | `/orders/:id`        | R1      | **Implementado**      | Ambos (detalhe)                          |
 | `POST`   | `/orders`            | R1      | **Implementado**      | Cliente (mesa)                           |
 | `PATCH`  | `/orders/:id/status` | R1      | **Implementado**      | Restaurante                              |
 | `POST`   | `/ai/recommendation` | R2      | Contrato (Fora do R1) | Cliente                                  |
@@ -281,9 +315,18 @@ Lista pedidos da fila. Sem paginação no MVP.
 | `table`  | `string` | não         | —       | Filtra pela mesa              |
 
 **200 OK** — array de `Order`, ordenado por `createdAt` ascendente (mais antigo primeiro — fila).
-Cada item contém `id`, `table`, `status`, `items`, `totalCents` e `createdAt`. Cada elemento de `items` contém `productId`, `quantity` e, quando informado, `note`.
+Cada item contém `id`, `table`, `status`, `items`, `totalCents` e `createdAt`. Cada elemento de `items` contém `productId`, `name`, `quantity`, `unitPriceCents`, `lineTotalCents` e, quando informado, `note`.
 
 `status` aceita somente `received`, `preparing`, `ready` ou `finished`; `table` é comparada exatamente. Os filtros podem ser combinados. Consultas sem resultados retornam `[]`; parâmetros inválidos retornam **400 `VALIDATION_ERROR`**.
+
+---
+
+### `GET /orders/:id`
+
+Retorna um pedido completo (mesma forma de `Order` da lista), com itens e snapshot de nome/preços.
+
+**200 OK** — um `Order`.  
+**404** — `{ "error": { "code": "ORDER_NOT_FOUND", "message": "..." } }`
 
 ---
 
@@ -361,8 +404,21 @@ Exemplo de resposta:
   "table": "12",
   "status": "received",
   "items": [
-    { "productId": "p1", "quantity": 2, "note": "sem cebola" },
-    { "productId": "p2", "quantity": 1 }
+    {
+      "productId": "p1",
+      "name": "Burger Clássico",
+      "quantity": 2,
+      "unitPriceCents": 3290,
+      "lineTotalCents": 6580,
+      "note": "sem cebola"
+    },
+    {
+      "productId": "p2",
+      "name": "Burger Smoke",
+      "quantity": 1,
+      "unitPriceCents": 3890,
+      "lineTotalCents": 3890
+    }
   ],
   "totalCents": 10470,
   "createdAt": "2026-10-25T18:00:00.000Z"
@@ -462,6 +518,7 @@ Sugere produtos com base no cardápio real. A API **só** devolve `productId` qu
 - Seed: `src/db/seed.ts` (`p1`–`p12`) na primeira abertura com a tabela `products` vazia. Vários nascem com ingredientes ilustrativos. `p5` e `p6` nascem com `[]`. A abertura não regrava um banco que já tem produtos.
 - Soft-delete e filtros de `GET /products` seguem este contrato.
 - `idempotency_keys` guarda a chave, o fingerprint SHA-256 do body canônico, o `order_id`, `created_at` e o JSON da resposta original. A repetição do `POST` devolve essa resposta, não o pedido depois de uma mudança de status. A linha não é apagada por idade.
+- `order_items` guarda snapshot de `product_name`, `unit_price_cents` e `line_total_cents` na criação. Banco antigo recebe essas colunas na abertura (`ALTER` + backfill a partir do cardápio atual).
 
 ### Coluna `products.ingredients`
 

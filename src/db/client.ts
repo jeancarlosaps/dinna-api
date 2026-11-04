@@ -33,6 +33,7 @@ export function openDatabase(options: OpenDatabaseOptions): Db {
   db.exec(`PRAGMA busy_timeout = ${SQLITE_BUSY_TIMEOUT_MS}`);
   db.exec(SCHEMA_SQL);
   ensureProductIngredientsColumn(db);
+  migrateOrderItemsSnapshot(db);
 
   if (seed) {
     seedProductsIfEmpty(db);
@@ -68,6 +69,55 @@ function productsTableHasIngredients(db: Db): boolean {
     name: string;
   }>;
   return columns.some((column) => column.name === 'ingredients');
+}
+
+/**
+ * Bancos criados antes do snapshot recebem as colunas na abertura.
+ * Linhas antigas são preenchidas a partir do cardápio atual (melhor esforço).
+ */
+function migrateOrderItemsSnapshot(db: Db): void {
+  db.exec('BEGIN IMMEDIATE');
+  try {
+    const columns = db.prepare('PRAGMA table_info(order_items)').all() as unknown as Array<{
+      name: string;
+    }>;
+    const names = new Set(columns.map((column) => column.name));
+
+    if (!names.has('product_name')) {
+      db.exec('ALTER TABLE order_items ADD COLUMN product_name TEXT');
+    }
+    if (!names.has('unit_price_cents')) {
+      db.exec('ALTER TABLE order_items ADD COLUMN unit_price_cents INTEGER');
+    }
+    if (!names.has('line_total_cents')) {
+      db.exec('ALTER TABLE order_items ADD COLUMN line_total_cents INTEGER');
+    }
+
+    db.exec(`
+      UPDATE order_items
+      SET
+        product_name = COALESCE(
+          product_name,
+          (SELECT name FROM products WHERE products.id = order_items.product_id),
+          'Produto'
+        ),
+        unit_price_cents = COALESCE(
+          unit_price_cents,
+          (SELECT price_cents FROM products WHERE products.id = order_items.product_id),
+          0
+        )
+      WHERE product_name IS NULL OR unit_price_cents IS NULL
+    `);
+    db.exec(`
+      UPDATE order_items
+      SET line_total_cents = COALESCE(line_total_cents, unit_price_cents * quantity)
+      WHERE line_total_cents IS NULL
+    `);
+    db.exec('COMMIT');
+  } catch (error) {
+    db.exec('ROLLBACK');
+    throw error;
+  }
 }
 
 /**

@@ -160,7 +160,16 @@ describe('migração de ingredients em banco já existente', () => {
         id: 'o_legacy',
         table: '4',
         status: 'received',
-        items: [{ productId: 'p_legacy', quantity: 1, note: 'sem molho' }],
+        items: [
+          {
+            productId: 'p_legacy',
+            name: 'Prato antigo',
+            quantity: 1,
+            unitPriceCents: 2500,
+            lineTotalCents: 2500,
+            note: 'sem molho',
+          },
+        ],
         totalCents: 2500,
         createdAt: '2026-10-16T18:00:00.000Z',
       },

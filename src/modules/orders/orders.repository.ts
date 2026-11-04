@@ -12,6 +12,7 @@ import { AppError } from '../../shared/errors/app-error.js';
 import { fingerprintCreateOrderInput } from './order-idempotency.js';
 
 interface ProductPriceRow {
+  name: string;
   price_cents: number;
   available: number;
 }
@@ -24,6 +25,9 @@ interface OrderWithItemRow {
   created_at: string;
   item_id: number | null;
   product_id: string | null;
+  product_name: string | null;
+  unit_price_cents: number | null;
+  line_total_cents: number | null;
   quantity: number | null;
   note: string | null;
 }
@@ -54,6 +58,9 @@ const ORDER_WITH_ITEMS_SELECT = `
     o.created_at,
     oi.id AS item_id,
     oi.product_id,
+    oi.product_name,
+    oi.unit_price_cents,
+    oi.line_total_cents,
     oi.quantity,
     oi.note
   FROM orders AS o
@@ -76,8 +83,21 @@ function mapOrderRows(rows: OrderWithItemRow[]): Order[] {
       orders.push(currentOrder);
     }
 
-    if (row.item_id !== null && row.product_id !== null && row.quantity !== null) {
-      const item: OrderItem = { productId: row.product_id, quantity: row.quantity };
+    if (
+      row.item_id !== null &&
+      row.product_id !== null &&
+      row.quantity !== null &&
+      row.product_name !== null &&
+      row.unit_price_cents !== null &&
+      row.line_total_cents !== null
+    ) {
+      const item: OrderItem = {
+        productId: row.product_id,
+        name: row.product_name,
+        quantity: row.quantity,
+        unitPriceCents: row.unit_price_cents,
+        lineTotalCents: row.line_total_cents,
+      };
       if (row.note !== null) {
         item.note = row.note;
       }
@@ -93,6 +113,15 @@ function findOrderById(db: Db, id: string): Order | undefined {
     .prepare(`${ORDER_WITH_ITEMS_SELECT} WHERE o.id = ? ORDER BY oi.id ASC`)
     .all(id) as unknown as OrderWithItemRow[];
   return mapOrderRows(rows)[0];
+}
+
+/** Pedido completo por id, com itens e snapshot de preços. */
+export function getOrderById(db: Db, id: string): Order {
+  const order = findOrderById(db, id);
+  if (!order) {
+    throw new AppError(404, 'ORDER_NOT_FOUND', `Pedido ${id} não encontrado`);
+  }
+  return order;
 }
 
 function newOrderId(): string {
@@ -197,8 +226,9 @@ function replayIdempotentOrder(
 }
 
 function insertOrder(db: Db, input: CreateOrderInput, idempotencyKey?: string): Order {
-  const getProduct = db.prepare('SELECT price_cents, available FROM products WHERE id = ?');
+  const getProduct = db.prepare('SELECT name, price_cents, available FROM products WHERE id = ?');
   let totalCents = 0;
+  const items: OrderItem[] = [];
 
   for (const item of input.items) {
     const product = getProduct.get(item.productId) as unknown as ProductPriceRow | undefined;
@@ -218,9 +248,9 @@ function insertOrder(db: Db, input: CreateOrderInput, idempotencyKey?: string): 
       throw new AppError(400, 'VALIDATION_ERROR', 'Quantidade ou preço inválido para o pedido');
     }
 
-    const itemTotalCents = product.price_cents * item.quantity;
-    const nextTotalCents = totalCents + itemTotalCents;
-    if (!Number.isSafeInteger(itemTotalCents) || !Number.isSafeInteger(nextTotalCents)) {
+    const lineTotalCents = product.price_cents * item.quantity;
+    const nextTotalCents = totalCents + lineTotalCents;
+    if (!Number.isSafeInteger(lineTotalCents) || !Number.isSafeInteger(nextTotalCents)) {
       throw new AppError(
         400,
         'VALIDATION_ERROR',
@@ -229,13 +259,24 @@ function insertOrder(db: Db, input: CreateOrderInput, idempotencyKey?: string): 
     }
 
     totalCents = nextTotalCents;
+    const snapshot: OrderItem = {
+      productId: item.productId,
+      name: product.name,
+      quantity: item.quantity,
+      unitPriceCents: product.price_cents,
+      lineTotalCents,
+    };
+    if (item.note !== undefined) {
+      snapshot.note = item.note;
+    }
+    items.push(snapshot);
   }
 
   const order: Order = {
     id: newOrderId(),
     table: input.table,
     status: 'received',
-    items: input.items.map((item): OrderItem => ({ ...item })),
+    items,
     totalCents,
     createdAt: new Date().toISOString(),
   };
@@ -246,11 +287,20 @@ function insertOrder(db: Db, input: CreateOrderInput, idempotencyKey?: string): 
   ).run(order.id, order.table, order.status, order.totalCents, order.createdAt);
 
   const insertItem = db.prepare(
-    `INSERT INTO order_items (order_id, product_id, quantity, note)
-     VALUES (?, ?, ?, ?)`,
+    `INSERT INTO order_items (
+      order_id, product_id, product_name, unit_price_cents, line_total_cents, quantity, note
+    ) VALUES (?, ?, ?, ?, ?, ?, ?)`,
   );
   for (const item of order.items) {
-    insertItem.run(order.id, item.productId, item.quantity, item.note ?? null);
+    insertItem.run(
+      order.id,
+      item.productId,
+      item.name,
+      item.unitPriceCents,
+      item.lineTotalCents,
+      item.quantity,
+      item.note ?? null,
+    );
   }
 
   if (idempotencyKey !== undefined) {

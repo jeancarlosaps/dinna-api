@@ -1,13 +1,13 @@
 import { parentPort, workerData } from 'node:worker_threads';
 import { buildApp } from '../../src/app.js';
-import type { OrderItem } from '../../src/db/types.js';
+import type { CreateOrderItemInput } from '../../src/db/types.js';
 
 interface CreateOrderWorkerData {
   databasePath: string;
   idempotencyKey: string;
   payload: {
     table: string;
-    items: OrderItem[];
+    items: CreateOrderItemInput[];
   };
 }
 
