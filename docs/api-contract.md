@@ -130,6 +130,10 @@ Snapshot do cardápio no momento da criação. Não muda se o produto for editad
 | `lineTotalCents` | `number` | sim         | `unitPriceCents × quantity`          |
 | `note`           | `string` | não         | Observação do cliente                |
 
+`GET /orders`, `GET /orders/:id` e `PATCH /orders/:id/status` exigem este item completo: `name`, `unitPriceCents` e `lineTotalCents` são obrigatórios.
+
+`POST /orders` de um pedido novo também devolve o snapshot. A repetição de uma `Idempotency-Key` já gravada devolve o `response_json` original. Se esse registro é anterior ao snapshot, esses três campos não vêm no corpo. A repetição não os completa com o cardápio atual, não usa o pedido migrado e não regrava o JSON.
+
 ### Order
 
 ```json
@@ -346,7 +350,9 @@ Sem o header, cada `POST` cria um pedido novo. Esse é o comportamento dos clien
 Com o header:
 
 - Chave válida e ainda não usada grava o pedido e a chave na **mesma transação** e responde **201** com o `Order`.
-- A mesma chave e um payload semanticamente equivalente devolvem **201** com o corpo original da criação (mesmo `id`, `status`, itens, `totalCents` e `createdAt`), sem criar outro pedido. Um `PATCH` posterior muda o pedido persistido e a resposta de `GET /orders`, mas não altera essa repetição do `POST`. Produto que fica indisponível ou muda de `priceCents` depois da criação também não altera essa repetição: a consulta da chave ocorre antes das validações do catálogo atual.
+- A mesma chave e um payload semanticamente equivalente devolvem **201** com o corpo original da criação (mesmo `id`, `status`, itens, `totalCents` e `createdAt`), sem criar outro pedido. Um `PATCH` posterior muda o pedido persistido e a resposta de `GET /orders`, mas não altera essa repetição do `POST`. Produto que fica indisponível ou muda de nome ou `priceCents` depois da criação também não altera essa repetição: a consulta da chave ocorre antes das validações do catálogo atual, e o replay não reconstrói a resposta a partir do estado atual.
+- Pedido criado por esta versão grava e repete o snapshot completo (`name`, `unitPriceCents`, `lineTotalCents`). Chave gravada antes do snapshot repete o corpo legado, sem esses campos. A repetição não consulta o cardápio, não recalcula preços e não substitui o JSON pelo pedido que `GET /orders/:id` devolve depois da migração. A linha em `idempotency_keys` não é reescrita.
+- `GET /orders`, `GET /orders/:id` e `PATCH /orders/:id/status` continuam na representação enriquecida. Pedido antigo recebe o snapshot na migração de `order_items`, a partir do cardápio da abertura. Essa representação não alimenta o replay do `POST`.
 - A mesma chave e um payload diferente respondem **409** `IDEMPOTENCY_KEY_CONFLICT` e não criam pedido. A chave continua associada ao primeiro pedido.
 - Header presente e inválido (vazio, não UUID, UUID nulo ou repetido) responde **400** `VALIDATION_ERROR` e não cria pedido.
 - Produto inexistente ou indisponível responde **404** `PRODUCT_NOT_FOUND` e **não consome** a chave: uma tentativa seguinte, com a mesma chave e um body válido, pode criar o pedido.
@@ -387,7 +393,8 @@ Idempotency-Key: 550e8400-e29b-41d4-a716-446655440000
 }
 ```
 
-**201 Created** — `Order` completo, tanto na criação quanto na repetição equivalente.  
+**201 Created** — na criação, `Order` com snapshot completo. Na repetição, o corpo originalmente gravado: snapshot completo se o pedido nasceu nesta versão, ou o corpo legado se a chave é anterior ao snapshot.
+
 **400** — `VALIDATION_ERROR` (body inválido; lista vazia; `quantity` &lt; 1 ou insegura; total fora da faixa de inteiros seguros; `Idempotency-Key` presente e inválida).
 
 **404** — `PRODUCT_NOT_FOUND` se algum `productId` não existir **ou** estiver `available: false`. A chave, se enviada, não fica gravada.
@@ -518,7 +525,7 @@ Sugere produtos com base no cardápio real. A API **só** devolve `productId` qu
 - Seed: `src/db/seed.ts` (`p1`–`p12`) na primeira abertura com a tabela `products` vazia. Vários nascem com ingredientes ilustrativos. `p5` e `p6` nascem com `[]`. A abertura não regrava um banco que já tem produtos.
 - Soft-delete e filtros de `GET /products` seguem este contrato.
 - `idempotency_keys` guarda a chave, o fingerprint SHA-256 do body canônico, o `order_id`, `created_at` e o JSON da resposta original. A repetição do `POST` devolve essa resposta, não o pedido depois de uma mudança de status. A linha não é apagada por idade.
-- `order_items` guarda snapshot de `product_name`, `unit_price_cents` e `line_total_cents` na criação. Banco antigo recebe essas colunas na abertura (`ALTER` + backfill a partir do cardápio atual).
+- `order_items` guarda snapshot de `product_name`, `unit_price_cents` e `line_total_cents` na criação. Banco antigo recebe essas colunas na abertura (`ALTER` + backfill a partir do cardápio atual). Esse backfill não reescreve `idempotency_keys.response_json`. O replay do `POST` continua devolvendo o JSON gravado, não o item migrado.
 
 ### Coluna `products.ingredients`
 

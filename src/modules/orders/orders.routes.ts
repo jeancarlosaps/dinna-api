@@ -16,8 +16,8 @@ const createOrderItemSchema = {
   },
 } as const;
 
-/** Resposta: snapshot de nome e preços na criação. */
-const orderItemResponseSchema = {
+/** GET e PATCH: snapshot de nome e preços obrigatório. */
+export const orderItemResponseSchema = {
   type: 'object',
   additionalProperties: false,
   required: ['productId', 'name', 'quantity', 'unitPriceCents', 'lineTotalCents'],
@@ -31,7 +31,26 @@ const orderItemResponseSchema = {
   },
 } as const;
 
-const orderResponseSchema = {
+/**
+ * POST 201: o snapshot entra na resposta quando foi gravado.
+ * Replay de `response_json` anterior não traz `name` nem preços;
+ * o serializer não pode exigir esses campos nem preenchê-los.
+ */
+export const createOrderItemResponseSchema = {
+  type: 'object',
+  additionalProperties: false,
+  required: ['productId', 'quantity'],
+  properties: {
+    productId: { type: 'string', minLength: 1 },
+    name: { type: 'string', minLength: 1 },
+    quantity: { type: 'integer', minimum: 1, maximum: Number.MAX_SAFE_INTEGER },
+    unitPriceCents: { type: 'integer', minimum: 0 },
+    lineTotalCents: { type: 'integer', minimum: 0 },
+    note: { type: 'string', maxLength: 200 },
+  },
+} as const;
+
+export const orderResponseSchema = {
   type: 'object',
   additionalProperties: false,
   required: ['id', 'table', 'status', 'items', 'totalCents', 'createdAt'],
@@ -40,6 +59,20 @@ const orderResponseSchema = {
     table: { type: 'string' },
     status: { type: 'string', enum: ['received', 'preparing', 'ready', 'finished'] },
     items: { type: 'array', items: orderItemResponseSchema },
+    totalCents: { type: 'integer', minimum: 0 },
+    createdAt: { type: 'string', format: 'date-time' },
+  },
+} as const;
+
+export const createOrderResponseSchema = {
+  type: 'object',
+  additionalProperties: false,
+  required: ['id', 'table', 'status', 'items', 'totalCents', 'createdAt'],
+  properties: {
+    id: { type: 'string' },
+    table: { type: 'string' },
+    status: { type: 'string', enum: ['received', 'preparing', 'ready', 'finished'] },
+    items: { type: 'array', items: createOrderItemResponseSchema },
     totalCents: { type: 'integer', minimum: 0 },
     createdAt: { type: 'string', format: 'date-time' },
   },
@@ -125,7 +158,7 @@ export function ordersRoutes(db: Db): FastifyPluginAsync {
             },
           },
           response: {
-            201: orderResponseSchema,
+            201: createOrderResponseSchema,
           },
         },
       },
