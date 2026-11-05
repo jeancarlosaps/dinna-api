@@ -525,7 +525,7 @@ Sugere produtos com base no cardápio real. A API **só** devolve `productId` qu
 - Seed: `src/db/seed.ts` (`p1`–`p12`) na primeira abertura com a tabela `products` vazia. Vários nascem com ingredientes ilustrativos. `p5` e `p6` nascem com `[]`. A abertura não regrava um banco que já tem produtos.
 - Soft-delete e filtros de `GET /products` seguem este contrato.
 - `idempotency_keys` guarda a chave, o fingerprint SHA-256 do body canônico, o `order_id`, `created_at` e o JSON da resposta original. A repetição do `POST` devolve essa resposta, não o pedido depois de uma mudança de status. A linha não é apagada por idade.
-- `order_items` guarda snapshot de `product_name`, `unit_price_cents` e `line_total_cents` na criação. Banco antigo recebe essas colunas na abertura (`ALTER` + backfill a partir do cardápio atual). Esse backfill não reescreve `idempotency_keys.response_json`. O replay do `POST` continua devolvendo o JSON gravado, não o item migrado.
+- `order_items` guarda snapshot de `product_name`, `unit_price_cents` e `line_total_cents` na criação. Banco antigo recebe essas colunas na abertura (`ALTER` + backfill a partir do cardápio atual). Esse backfill não reescreve `idempotency_keys.response_json`. O replay do `POST` continua devolvendo o JSON gravado, não o item migrado. Se o preço atual vezes a quantidade não couber em inteiro seguro, a migração não grava `unit_price_cents` nem `line_total_cents` dessa linha e não coloca outro número no lugar. O nome pode ser preenchido. Uma abertura seguinte tenta o snapshot de preço de novo.
 
 ### Coluna `products.ingredients`
 
