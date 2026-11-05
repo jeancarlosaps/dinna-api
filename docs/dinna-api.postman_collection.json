@@ -328,7 +328,7 @@
             ],
             "body": {
               "mode": "raw",
-              "raw": "{\n  \"table\": \"12\",\n  \"preferences\": \"sem glúten, leve\",\n  \"limit\": 3\n}",
+              "raw": "{\n  \"table\": \"12\",\n  \"preferences\": {\n    \"budget\": \"from_36_to_60\",\n    \"hunger\": \"normal\",\n    \"protein\": \"beef\",\n    \"style\": \"balanced\",\n    \"taste\": \"savory\",\n    \"restrictions\": [\"no_onion\"]\n  },\n  \"limit\": 3\n}",
               "options": {
                 "raw": {
                   "language": "json"
@@ -336,7 +336,7 @@
               }
             },
             "url": "{{baseUrl}}/ai/recommendation",
-            "description": "Recomendação (R2). Ainda não implementado."
+            "description": "Recomendação (R2). Contrato em docs/api-contract.md e docs/ai-recommendation-design.md. Ainda não implementado. preferences é objeto, não texto."
           },
           "response": []
         }
