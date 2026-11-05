@@ -172,22 +172,22 @@ A comparação não grava nada no produto. Para cada um de `name`, `description`
 3. passar a minúsculas pelo Unicode padrão, sem locale;
 4. procurar o token com limite de letra: o caractere anterior e o seguinte, se existirem, não podem ser letra.
 
-`frango` casa em “Frango grelhado”. `boi` não casa dentro de outra palavra. Acentos não separam `salmão` de `salmao`.
+`frango` casa em “Frango grelhado”. `boi` casa em “carne de boi” e não casa dentro de “boina”. Acentos não separam `salmão` de `salmao`. O limite de letra não reduz plural: `cebola` não casa em `cebolas`, então o plural entra como token próprio. `cebolinha` não é `cebola` e continua de fora.
 
-Tokens de proteína, já sem acento:
+Tokens de proteína, já sem acento. A forma do plural acompanha o singular na mesma coluna:
 
-| Preferência  | Entra se encontrar                                             | Não usa como evidência           |
-| ------------ | -------------------------------------------------------------- | -------------------------------- |
-| `chicken`    | `frango`, `chicken`                                            | `carne` solta, `blend`           |
-| `fish`       | `peixe`, `salmao`, `tilapia`, `bacalhau`, `atum`, `fish`       | `camarao` e outros frutos do mar |
-| `beef`       | `bovina`, `bovino`, `beef`                                     | `carne` solta, `blend`, `bacon`  |
-| `vegetarian` | lista de ingredientes não vazia e nenhum token de carne animal | lista vazia                      |
+| Preferência  | Entra se encontrar                                                                                              | Não usa como evidência                             |
+| ------------ | --------------------------------------------------------------------------------------------------------------- | -------------------------------------------------- |
+| `chicken`    | `frango`, `frangos`, `chicken`, `chickens`                                                                      | `carne` solta, `blend`                             |
+| `fish`       | `peixe`, `peixes`, `salmao`, `salmoes`, `tilapia`, `tilapias`, `bacalhau`, `bacalhaus`, `atum`, `atuns`, `fish` | `camarao`, `camaroes` e outros frutos do mar       |
+| `beef`       | `bovina`, `bovinas`, `bovino`, `bovinos`, `beef`                                                                | `carne`, `carnes`, `boi`, `bois`, `blend`, `bacon` |
+| `vegetarian` | lista de ingredientes não vazia e nenhum token de carne animal                                                  | lista vazia                                        |
 
-Carne animal, para excluir `vegetarian`: os tokens de frango, peixe e carne bovina, mais `bacon`, `porco`, `suino`, `suina`, `presunto`, `camarao`, `lula`, `polvo`, `ostra`, `marisco`, `siri`, `caranguejo`, `lagosta`.
+Carne animal, para excluir `vegetarian`: os tokens positivos de frango, peixe e carne bovina, mais `carne`, `carnes`, `boi`, `bois`, `bacon`, `porco`, `porcos`, `suino`, `suinos`, `suina`, `suinas`, `presunto`, `presuntos`, `camarao`, `camaroes`, `lula`, `lulas`, `polvo`, `polvos`, `ostra`, `ostras`, `marisco`, `mariscos`, `siri`, `siris`, `caranguejo`, `caranguejos`, `lagosta`, `lagostas`.
 
-Ovo, leite, queijo e mel não tiram `vegetarian`. Também não provam `vegan`.
+`carne` e `boi` tiram o prato de `vegetarian` e não o colocam em `beef`. “Carne moída” e “carne de boi” não identificam a espécie que o token `bovina` exigiria, e também não são ausência de carne. “Carne de soja” sai pelo mesmo token: a V1 não interpreta o qualificativo. Ovo, leite, queijo e mel não tiram `vegetarian`. Também não provam `vegan`.
 
-Token de cebola: `cebola`, `onion`.
+Token de cebola: `cebola`, `cebolas`, `onion`, `onions`.
 
 Não há lista de tokens para declarar glúten, lactose, vegano ou fruto do mar como ausência. A restrição crítica exclui antes disso. Token de conflito continua inútil na V1, porque o produto já saiu.
 
@@ -357,7 +357,10 @@ Testes de comportamento ficam para quem implementar. Cada um deve travar um fato
 | `style: light` e `style: full`                                                    | mesma lista                                                                                                               |
 | Preço 2000, 2001, 2100, 3500, 3501, 3600 e 6000                                   | cada um só na faixa da tabela de centavos                                                                                 |
 | Ingredientes `[]` e `no_onion`                                                    | produto fora                                                                                                              |
-| Ingrediente “Cebola” e `no_onion`                                                 | produto fora                                                                                                              |
+| Ingrediente “Cebola”, “Cebolas” ou “Onions” e `no_onion`                          | produto fora                                                                                                              |
+| `["Carne moída", "Pão"]` ou `["Carne de boi"]`                                    | não é `vegetarian` e não é `beef`                                                                                         |
+| `["Carne bovina"]`                                                                | é `beef` e não é `vegetarian`                                                                                             |
+| `["Frangos"]`                                                                     | é `chicken` e não é `vegetarian`                                                                                          |
 | Lista sem cebola, não vazia, e `no_onion`                                         | pode entrar, e o motivo diz “na lista cadastrada”                                                                         |
 | Resposta não traz `name` nem `priceCents`                                         | o cliente usa o `Product`                                                                                                 |
 
