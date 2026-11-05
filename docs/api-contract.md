@@ -202,7 +202,7 @@ Qualquer outro salto ou regressão → `409 INVALID_STATUS_TRANSITION`.
 | `GET`    | `/orders/:id`        | R1      | **Implementado** | Ambos (detalhe)                          |
 | `POST`   | `/orders`            | R1      | **Implementado** | Cliente (mesa)                           |
 | `PATCH`  | `/orders/:id/status` | R1      | **Implementado** | Restaurante                              |
-| `POST`   | `/ai/recommendation` | R2      | **Contrato**     | Cliente                                  |
+| `POST`   | `/ai/recommendation` | R2      | **Implementado** | Cliente                                  |
 
 ---
 
@@ -455,7 +455,7 @@ A transição pode avançar somente um passo: `received` → `preparing` → `re
 
 ### `POST /ai/recommendation` (R2)
 
-Contrato planejado na SCRUM-60. A rota **ainda não existe** no Fastify. Este formato **substitui** o contrato preliminar, que aceitava `preferences` como texto e respondia `productIds` mais `fallback`. Aquele formato não chegou a ser implementado. Um body com `preferences` string, ou com os campos antigos na resposta, não é aceito.
+Implementado na SCRUM-62. Este formato **substitui** o contrato preliminar, que aceitava `preferences` como texto e respondia `productIds` mais `fallback`. Aquele formato não foi implementado. Um body com `preferences` string, ou com os campos antigos na resposta, não é aceito.
 
 A seleção, o fallback, a política alimentar e os estados de tela estão em [`ai-recommendation-design.md`](ai-recommendation-design.md). Este arquivo guarda o que entra e o que sai no HTTP.
 
@@ -616,4 +616,4 @@ Preencher ingredientes ilustrativos num banco que já tem `p1`–`p12` não faz 
 ## Próximos passos
 
 - **R1:** módulo `orders` completo com o ciclo de status (tabelas já existem no schema).
-- **R2:** implementar `POST /ai/recommendation` como em [`ai-recommendation-design.md`](ai-recommendation-design.md). O contrato preliminar de `preferences` string não deve ser implementado.
+- **R2:** `POST /ai/recommendation` implementado na SCRUM-62, conforme [`ai-recommendation-design.md`](ai-recommendation-design.md). O contrato preliminar de `preferences` string não foi implementado.
