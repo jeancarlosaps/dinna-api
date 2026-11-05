@@ -13,7 +13,7 @@
 | `GET /health`                   | Autenticação / autorização     |
 | Produtos (CRUD)                 | Multi-restaurante / tenants    |
 | Pedidos (criar, listar, status) | Paginação e ordenação avançada |
-| Recomendação IA (shape R2)      | Pagamentos, delivery, estoque  |
+| Recomendação (contrato R2)      | Pagamentos, delivery, estoque  |
 
 - Um restaurante, cardápio e fila pequenos (apresentação acadêmica).
 - Sem auth no MVP: qualquer cliente HTTP pode chamar qualquer rota. A distinção **cliente × restaurante** fica no app Flutter (perfis de UI), não na API.
@@ -190,19 +190,19 @@ Qualquer outro salto ou regressão → `409 INVALID_STATUS_TRANSITION`.
 
 ## Endpoints
 
-| Método   | Rota                 | Release | Status                | Quem usa (UI)                            |
-| -------- | -------------------- | ------- | --------------------- | ---------------------------------------- |
-| `GET`    | `/health`            | R0      | **Implementado**      | Ambos (checagem de conexão)              |
-| `GET`    | `/products`          | R0/R1   | **Implementado**      | Cliente (cardápio); restaurante (gestão) |
-| `GET`    | `/products/:id`      | R0/R1   | **Implementado**      | Ambos                                    |
-| `POST`   | `/products`          | R0/R1   | **Implementado**      | Restaurante                              |
-| `PUT`    | `/products/:id`      | R0/R1   | **Implementado**      | Restaurante                              |
-| `DELETE` | `/products/:id`      | R0/R1   | **Implementado**      | Restaurante (soft-delete)                |
-| `GET`    | `/orders`            | R1      | **Implementado**      | Restaurante (fila)                       |
-| `GET`    | `/orders/:id`        | R1      | **Implementado**      | Ambos (detalhe)                          |
-| `POST`   | `/orders`            | R1      | **Implementado**      | Cliente (mesa)                           |
-| `PATCH`  | `/orders/:id/status` | R1      | **Implementado**      | Restaurante                              |
-| `POST`   | `/ai/recommendation` | R2      | Contrato (Fora do R1) | Cliente                                  |
+| Método   | Rota                 | Release | Status           | Quem usa (UI)                            |
+| -------- | -------------------- | ------- | ---------------- | ---------------------------------------- |
+| `GET`    | `/health`            | R0      | **Implementado** | Ambos (checagem de conexão)              |
+| `GET`    | `/products`          | R0/R1   | **Implementado** | Cliente (cardápio); restaurante (gestão) |
+| `GET`    | `/products/:id`      | R0/R1   | **Implementado** | Ambos                                    |
+| `POST`   | `/products`          | R0/R1   | **Implementado** | Restaurante                              |
+| `PUT`    | `/products/:id`      | R0/R1   | **Implementado** | Restaurante                              |
+| `DELETE` | `/products/:id`      | R0/R1   | **Implementado** | Restaurante (soft-delete)                |
+| `GET`    | `/orders`            | R1      | **Implementado** | Restaurante (fila)                       |
+| `GET`    | `/orders/:id`        | R1      | **Implementado** | Ambos (detalhe)                          |
+| `POST`   | `/orders`            | R1      | **Implementado** | Cliente (mesa)                           |
+| `PATCH`  | `/orders/:id/status` | R1      | **Implementado** | Restaurante                              |
+| `POST`   | `/ai/recommendation` | R2      | **Contrato**     | Cliente                                  |
 
 ---
 
@@ -455,37 +455,115 @@ A transição pode avançar somente um passo: `received` → `preparing` → `re
 
 ### `POST /ai/recommendation` (R2)
 
-Sugere produtos com base no cardápio real. A API **só** devolve `productId` que existam e estejam disponíveis; IDs inválidos do modelo são descartados. Se a lista filtrada ficar vazia, aplica **fallback** (ex.: primeiros N disponíveis por categoria popular) — detalhe de implementação na SCRUM-13 / Epic E9.
+Contrato planejado na SCRUM-60. A rota **ainda não existe** no Fastify. Este formato **substitui** o contrato preliminar, que aceitava `preferences` como texto e respondia `productIds` mais `fallback`. Aquele formato não chegou a ser implementado. Um body com `preferences` string, ou com os campos antigos na resposta, não é aceito.
+
+A seleção, o fallback, a política alimentar e os estados de tela estão em [`ai-recommendation-design.md`](ai-recommendation-design.md). Este arquivo guarda o que entra e o que sai no HTTP.
+
+O cardápio continua sendo a fonte de verdade. A resposta traz `productId` de produto real. Não traz nome, preço, imagem nem ingredientes: o cliente resolve isso em `GET /products`. Texto ou preço vindo do provedor não é gravado nem devolvido.
+
+A rota não cria pedido, não altera carrinho e não lê `Idempotency-Key`.
 
 **Body**
 
 ```json
 {
   "table": "12",
-  "preferences": "sem glúten, leve",
+  "preferences": {
+    "budget": "from_36_to_60",
+    "hunger": "normal",
+    "protein": "beef",
+    "style": "balanced",
+    "taste": "savory",
+    "restrictions": ["no_onion"]
+  },
   "limit": 3
 }
 ```
 
-| Campo         | Tipo     | Obrigatório | Notas                     |
-| ------------- | -------- | ----------- | ------------------------- |
-| `table`       | `string` | não         | Contexto opcional         |
-| `preferences` | `string` | não         | Texto livre do cliente    |
-| `limit`       | `number` | não         | Default `3`; inteiro 1–10 |
+| Campo         | Tipo     | Obrigatório | Notas                                                                                                          |
+| ------------- | -------- | ----------- | -------------------------------------------------------------------------------------------------------------- |
+| `table`       | `string` | não         | 1–40 caracteres, com algum caractere que não seja espaço, sem espaço nas pontas. Não filtra e não é persistido |
+| `preferences` | `object` | sim         | Objeto abaixo. String é `400`                                                                                  |
+| `limit`       | `number` | não         | Inteiro de 1 a 3. Ausente vale `3`. `null` é `400`                                                             |
+
+`additionalProperties: false` no body e em `preferences`. Campo desconhecido, inclusive um campo de texto livre, é `400 VALIDATION_ERROR`.
+
+#### `preferences`
+
+| Campo          | Tipo       | Obrigatório | Seleção  | Valores                                                                                                                   |
+| -------------- | ---------- | ----------- | -------- | ------------------------------------------------------------------------------------------------------------------------- |
+| `budget`       | `string`   | sim         | única    | `up_to_20`, `from_21_to_35`, `from_36_to_60`, `unlimited`                                                                 |
+| `hunger`       | `string`   | sim         | única    | `little`, `normal`, `big`                                                                                                 |
+| `protein`      | `string`   | sim         | única    | `chicken`, `fish`, `beef`, `vegetarian`                                                                                   |
+| `style`        | `string`   | sim         | única    | `light`, `balanced`, `full`                                                                                               |
+| `taste`        | `string`   | sim         | única    | `savory`, `sweet`                                                                                                         |
+| `restrictions` | `string[]` | não         | múltipla | `no_onion`, `no_gluten`, `no_lactose`, `vegan`, `no_seafood`. Ausente ou `[]` significa nenhuma. Máximo de 5, sem repetir |
+
+Pergunta omitida no objeto não recebe default. O cliente só envia a rota depois de responder as cinco escolhas únicas. Restrição é opcional.
+
+Faixas de `budget`, em centavos inteiros e fechadas. Preço fora delas só entra em `unlimited`:
+
+| Valor           | `priceCents`         |
+| --------------- | -------------------- |
+| `up_to_20`      | 0–2000               |
+| `from_21_to_35` | 2100–3500            |
+| `from_36_to_60` | 3600–6000            |
+| `unlimited`     | qualquer inteiro ≥ 0 |
+
+`2001–2099` e `3501–3599` não pertencem a nenhuma faixa limitada.
+
+Combinação contraditória é `400 VALIDATION_ERROR`, antes de consultar o cardápio:
+
+| Combinação                                     | Motivo                                  |
+| ---------------------------------------------- | --------------------------------------- |
+| `protein: fish` e `no_seafood`                 | A proteína escolhida é fruto do mar     |
+| `protein: chicken`, `fish` ou `beef` e `vegan` | A proteína escolhida não cabe em vegano |
+
+`vegetarian` com `vegan` não é contraditório: vegano é mais restrito e segue a política alimentar do desenho.
+
+`no_gluten`, `no_lactose`, `vegan` e `no_seafood` são restrições críticas. Com o `Product` atual, que não tem atributo alimentar confiável, a rota responde `not_called` e `no_compatible_products`. Não há sugestão “sem glúten”, “sem lactose”, “vegano” ou “sem frutos do mar”. `no_onion` é filtro culinário e pode produzir sugestão, sem alegar que o preparo esteja livre de cebola.
 
 **200 OK**
 
+Há quatro combinações válidas. Qualquer outra é erro de implementação.
+
 ```json
 {
-  "productIds": ["p1", "p3", "p5"],
-  "fallback": false
+  "provider": "answered",
+  "outcome": "suggestions",
+  "products": [
+    {
+      "productId": "p2",
+      "reason": "Carne, R$ 36–60, Salgado, sem cebola na lista cadastrada"
+    }
+  ]
 }
 ```
 
-| Campo        | Tipo       | Notas                                    |
-| ------------ | ---------- | ---------------------------------------- |
-| `productIds` | `string[]` | IDs válidos e `available: true`          |
-| `fallback`   | `boolean`  | `true` se a API usou a regra de fallback |
+O JSON acima mostra o formato de `answered`. No seed atual, o mesmo body pelo fallback devolve esse único `p2` com `provider: unavailable`: `p9` também está na faixa e é carne, mas a lista dele cita cebola.
+
+| `provider`    | `outcome`                | `products`                                     |
+| ------------- | ------------------------ | ---------------------------------------------- |
+| `answered`    | `suggestions`            | 1 a `limit` itens, na ordem aceita do provedor |
+| `unavailable` | `suggestions`            | 1 a `limit` itens, na ordem determinística     |
+| `not_called`  | `no_compatible_products` | `[]`                                           |
+| `not_called`  | `empty_catalog`          | `[]`                                           |
+
+| Campo       | Tipo     | Notas                                                                                                                                                                                                  |
+| ----------- | -------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| `provider`  | `string` | `answered`: ao menos um id do provedor passou no filtro. `unavailable`: chave ausente, timeout, falha ou nenhum id aproveitável, e o fallback achou prato. `not_called`: o provedor não foi consultado |
+| `outcome`   | `string` | `suggestions`, `no_compatible_products` ou `empty_catalog`                                                                                                                                             |
+| `products`  | `array`  | Vazio quando `outcome` não é `suggestions`. Sem id repetido                                                                                                                                            |
+| `productId` | `string` | Existe no snapshot da requisição e está `available: true`                                                                                                                                              |
+| `reason`    | `string` | Motivo curto montado pela API. 1–80 caracteres. Não vem do provedor                                                                                                                                    |
+
+`empty_catalog`: nenhum produto com `available: true`. `no_compatible_products`: há produto disponível, mas nenhum passou nas regras. Os dois respondem **200** com lista vazia. Não se completa a lista com outros pratos.
+
+**400** — `VALIDATION_ERROR`. Enum inválido, tipo errado, `limit` fora de 1–3, restrição repetida, contradição ou campo desconhecido. `details` segue o formato comum quando a falha é do schema.
+
+**500** — `INTERNAL_ERROR` só se a leitura do cardápio ou o fallback falhar. Falha do provedor, com fallback concluído, continua **200** e `provider: unavailable`.
+
+Não há `404` de produto nesta rota: id desconhecido do provedor é descartado, não vira erro HTTP.
 
 ---
 
@@ -538,4 +616,4 @@ Preencher ingredientes ilustrativos num banco que já tem `p1`–`p12` não faz 
 ## Próximos passos
 
 - **R1:** módulo `orders` completo com o ciclo de status (tabelas já existem no schema).
-- **R2:** implementação de `POST /ai/recommendation`.
+- **R2:** implementar `POST /ai/recommendation` como em [`ai-recommendation-design.md`](ai-recommendation-design.md). O contrato preliminar de `preferences` string não deve ser implementado.
