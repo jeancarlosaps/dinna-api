@@ -74,11 +74,12 @@ Fundação (R0) **em andamento**. Health, SQLite, seed de cardápio e CRUD de `/
 | Formato único de erro (400 / 404 / `AppError` / 500)                 | ✅ Implementado e testado                      |
 | Validação de entrada com JSON Schema nativo do Fastify               | ✅ Em uso nas rotas de produtos                |
 | Variáveis de ambiente (`HOST`, `PORT`, `LOG_LEVEL`, `DATABASE_PATH`) | ✅ Implementado e testado                      |
-| Lint, format, typecheck, testes, build, CI                           | ✅ 43 testes · GitHub Actions                  |
+| Lint, format, typecheck, testes, build, CI                           | ✅ 63 testes · GitHub Actions                  |
 | `/products` (CRUD + filtros)                                         | ✅ Implementado e testado (SCRUM-25)           |
 | Persistência SQLite (`node:sqlite`) + seed                           | ✅ Implementado                                |
 | `POST /orders`                                                       | ✅ Implementado (SCRUM-45, SCRUM-89, SCRUM-90) |
 | `GET /orders`                                                        | ✅ Implementado e testado (SCRUM-47)           |
+| `GET /orders/:id`                                                    | ✅ Implementado e testado                      |
 | `PATCH /orders/:id/status`                                           | ✅ Implementado e testado (SCRUM-53)           |
 | `/ai/recommendation`                                                 | ⬜ Planejado (R2)                              |
 | Autenticação                                                         | ⬜ Fora do escopo atual                        |
@@ -289,6 +290,7 @@ curl http://localhost:3333/nao-existe
 | `PUT`    | `/products/:id`      | R0/R1   | **Implementado** |
 | `DELETE` | `/products/:id`      | R0/R1   | **Implementado** |
 | `GET`    | `/orders`            | R1      | **Implementado** |
+| `GET`    | `/orders/:id`        | R1      | **Implementado** |
 | `POST`   | `/orders`            | R1      | **Implementado** |
 | `PATCH`  | `/orders/:id/status` | R1      | **Implementado** |
 | `POST`   | `/ai/recommendation` | R2      | Planejado        |
@@ -340,7 +342,7 @@ Todas as respostas de erro usam o mesmo formato:
 | `npm run format:check`     | Prettier, só verificando                                 |
 | `npm run build`            | Compila para `dist/`                                     |
 
-O que os 43 testes cobrem:
+O que os 63 testes cobrem:
 
 | Arquivo                            | Cobre                                                                                                             |
 | ---------------------------------- | ----------------------------------------------------------------------------------------------------------------- |

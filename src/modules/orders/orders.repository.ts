@@ -6,12 +6,15 @@ import type {
   OrderItem,
   OrderListQuery,
   OrderStatus,
+  StoredOrderItem,
+  StoredOrderResponse,
   UpdateOrderStatusInput,
 } from '../../db/types.js';
 import { AppError } from '../../shared/errors/app-error.js';
 import { fingerprintCreateOrderInput } from './order-idempotency.js';
 
 interface ProductPriceRow {
+  name: string;
   price_cents: number;
   available: number;
 }
@@ -24,6 +27,9 @@ interface OrderWithItemRow {
   created_at: string;
   item_id: number | null;
   product_id: string | null;
+  product_name: string | null;
+  unit_price_cents: number | null;
+  line_total_cents: number | null;
   quantity: number | null;
   note: string | null;
 }
@@ -54,6 +60,9 @@ const ORDER_WITH_ITEMS_SELECT = `
     o.created_at,
     oi.id AS item_id,
     oi.product_id,
+    oi.product_name,
+    oi.unit_price_cents,
+    oi.line_total_cents,
     oi.quantity,
     oi.note
   FROM orders AS o
@@ -76,8 +85,21 @@ function mapOrderRows(rows: OrderWithItemRow[]): Order[] {
       orders.push(currentOrder);
     }
 
-    if (row.item_id !== null && row.product_id !== null && row.quantity !== null) {
-      const item: OrderItem = { productId: row.product_id, quantity: row.quantity };
+    if (
+      row.item_id !== null &&
+      row.product_id !== null &&
+      row.quantity !== null &&
+      row.product_name !== null &&
+      row.unit_price_cents !== null &&
+      row.line_total_cents !== null
+    ) {
+      const item: OrderItem = {
+        productId: row.product_id,
+        name: row.product_name,
+        quantity: row.quantity,
+        unitPriceCents: row.unit_price_cents,
+        lineTotalCents: row.line_total_cents,
+      };
       if (row.note !== null) {
         item.note = row.note;
       }
@@ -93,6 +115,15 @@ function findOrderById(db: Db, id: string): Order | undefined {
     .prepare(`${ORDER_WITH_ITEMS_SELECT} WHERE o.id = ? ORDER BY oi.id ASC`)
     .all(id) as unknown as OrderWithItemRow[];
   return mapOrderRows(rows)[0];
+}
+
+/** Pedido completo por id, com itens e snapshot de preços. */
+export function getOrderById(db: Db, id: string): Order {
+  const order = findOrderById(db, id);
+  if (!order) {
+    throw new AppError(404, 'ORDER_NOT_FOUND', `Pedido ${id} não encontrado`);
+  }
+  return order;
 }
 
 function newOrderId(): string {
@@ -123,60 +154,116 @@ function orderExists(db: Db, id: string): boolean {
   return db.prepare('SELECT 1 AS present FROM orders WHERE id = ?').get(id) !== undefined;
 }
 
-/** A repetição devolve o corpo gravado na criação, não o pedido depois de um PATCH. */
-function parseStoredOrder(responseJson: string, orderId: string): Order {
+/** A repetição devolve o JSON gravado, sem reescrever a linha nem completar campos ausentes. */
+function parseStoredOrder(responseJson: string, orderId: string): StoredOrderResponse {
   let parsed: unknown;
   try {
     parsed = JSON.parse(responseJson);
   } catch {
-    throw new AppError(
-      500,
-      'IDEMPOTENCY_STATE_INVALID',
-      'A chave de idempotência não possui o pedido correspondente',
-    );
+    throw invalidIdempotencyState();
   }
 
-  if (!isStoredOrder(parsed) || parsed.id !== orderId) {
-    throw new AppError(
-      500,
-      'IDEMPOTENCY_STATE_INVALID',
-      'A chave de idempotência não possui o pedido correspondente',
-    );
+  if (!isStoredOrderResponse(parsed) || parsed.id !== orderId) {
+    throw invalidIdempotencyState();
   }
 
   return parsed;
 }
 
-function isStoredOrder(value: unknown): value is Order {
-  if (typeof value !== 'object' || value === null) {
-    return false;
-  }
+function invalidIdempotencyState(): AppError {
+  return new AppError(
+    500,
+    'IDEMPOTENCY_STATE_INVALID',
+    'A chave de idempotência não possui o pedido correspondente',
+  );
+}
 
-  const order = value as Record<string, unknown>;
+function isRecord(value: unknown): value is Record<string, unknown> {
+  return typeof value === 'object' && value !== null && !Array.isArray(value);
+}
+
+function isOrderStatus(value: unknown): value is OrderStatus {
+  return value === 'received' || value === 'preparing' || value === 'ready' || value === 'finished';
+}
+
+function isOptionalString(value: unknown): value is string | undefined {
+  return value === undefined || typeof value === 'string';
+}
+
+function isOptionalCents(value: unknown): value is number | undefined {
   return (
-    typeof order.id === 'string' &&
-    typeof order.table === 'string' &&
-    (order.status === 'received' ||
-      order.status === 'preparing' ||
-      order.status === 'ready' ||
-      order.status === 'finished') &&
-    Array.isArray(order.items) &&
-    typeof order.totalCents === 'number' &&
-    typeof order.createdAt === 'string'
+    value === undefined || (typeof value === 'number' && Number.isSafeInteger(value) && value >= 0)
   );
 }
 
 /**
- * Devolve o corpo original da criação.
+ * Aceita o item legado (`productId`, `quantity`, `note`) e o item com snapshot.
+ * Campo ausente não é preenchido. Tipo incompatível invalida o registro.
+ */
+function isStoredOrderItem(value: unknown): value is StoredOrderItem {
+  if (!isRecord(value)) {
+    return false;
+  }
+
+  if (typeof value.productId !== 'string' || value.productId.length === 0) {
+    return false;
+  }
+
+  if (
+    typeof value.quantity !== 'number' ||
+    !Number.isSafeInteger(value.quantity) ||
+    value.quantity < 1
+  ) {
+    return false;
+  }
+
+  return (
+    isOptionalString(value.note) &&
+    isOptionalString(value.name) &&
+    isOptionalCents(value.unitPriceCents) &&
+    isOptionalCents(value.lineTotalCents)
+  );
+}
+
+function isStoredOrderResponse(value: unknown): value is StoredOrderResponse {
+  if (!isRecord(value)) {
+    return false;
+  }
+
+  return (
+    typeof value.id === 'string' &&
+    typeof value.table === 'string' &&
+    isOrderStatus(value.status) &&
+    Array.isArray(value.items) &&
+    value.items.every(isStoredOrderItem) &&
+    typeof value.totalCents === 'number' &&
+    typeof value.createdAt === 'string'
+  );
+}
+
+/** Pedido novo já tem snapshot. O alargamento não remove esses campos. */
+function storedOrderResponseFromOrder(order: Order): StoredOrderResponse {
+  return {
+    id: order.id,
+    table: order.table,
+    status: order.status,
+    totalCents: order.totalCents,
+    createdAt: order.createdAt,
+    items: order.items.map((item): StoredOrderItem => ({ ...item })),
+  };
+}
+
+/**
+ * Devolve o corpo original da criação, sem alterar `response_json`.
  * Payload diferente não cria outro pedido. O status persistido pode avançar depois,
  * mas a repetição do POST não acompanha esse PATCH. Chave sem o pedido correspondente
- * falha sem reaproveitar a chave.
+ * falha sem reaproveitar a chave. Nome e preços ausentes no JSON gravado continuam ausentes.
  */
 function replayIdempotentOrder(
   db: Db,
   input: CreateOrderInput,
   existing: IdempotencyKeyRow,
-): Order {
+): StoredOrderResponse {
   if (existing.request_hash !== fingerprintCreateOrderInput(input)) {
     throw new AppError(
       409,
@@ -186,19 +273,16 @@ function replayIdempotentOrder(
   }
 
   if (!orderExists(db, existing.order_id)) {
-    throw new AppError(
-      500,
-      'IDEMPOTENCY_STATE_INVALID',
-      'A chave de idempotência não possui o pedido correspondente',
-    );
+    throw invalidIdempotencyState();
   }
 
   return parseStoredOrder(existing.response_json, existing.order_id);
 }
 
 function insertOrder(db: Db, input: CreateOrderInput, idempotencyKey?: string): Order {
-  const getProduct = db.prepare('SELECT price_cents, available FROM products WHERE id = ?');
+  const getProduct = db.prepare('SELECT name, price_cents, available FROM products WHERE id = ?');
   let totalCents = 0;
+  const items: OrderItem[] = [];
 
   for (const item of input.items) {
     const product = getProduct.get(item.productId) as unknown as ProductPriceRow | undefined;
@@ -218,9 +302,9 @@ function insertOrder(db: Db, input: CreateOrderInput, idempotencyKey?: string): 
       throw new AppError(400, 'VALIDATION_ERROR', 'Quantidade ou preço inválido para o pedido');
     }
 
-    const itemTotalCents = product.price_cents * item.quantity;
-    const nextTotalCents = totalCents + itemTotalCents;
-    if (!Number.isSafeInteger(itemTotalCents) || !Number.isSafeInteger(nextTotalCents)) {
+    const lineTotalCents = product.price_cents * item.quantity;
+    const nextTotalCents = totalCents + lineTotalCents;
+    if (!Number.isSafeInteger(lineTotalCents) || !Number.isSafeInteger(nextTotalCents)) {
       throw new AppError(
         400,
         'VALIDATION_ERROR',
@@ -229,13 +313,24 @@ function insertOrder(db: Db, input: CreateOrderInput, idempotencyKey?: string): 
     }
 
     totalCents = nextTotalCents;
+    const snapshot: OrderItem = {
+      productId: item.productId,
+      name: product.name,
+      quantity: item.quantity,
+      unitPriceCents: product.price_cents,
+      lineTotalCents,
+    };
+    if (item.note !== undefined) {
+      snapshot.note = item.note;
+    }
+    items.push(snapshot);
   }
 
   const order: Order = {
     id: newOrderId(),
     table: input.table,
     status: 'received',
-    items: input.items.map((item): OrderItem => ({ ...item })),
+    items,
     totalCents,
     createdAt: new Date().toISOString(),
   };
@@ -246,11 +341,20 @@ function insertOrder(db: Db, input: CreateOrderInput, idempotencyKey?: string): 
   ).run(order.id, order.table, order.status, order.totalCents, order.createdAt);
 
   const insertItem = db.prepare(
-    `INSERT INTO order_items (order_id, product_id, quantity, note)
-     VALUES (?, ?, ?, ?)`,
+    `INSERT INTO order_items (
+      order_id, product_id, product_name, unit_price_cents, line_total_cents, quantity, note
+    ) VALUES (?, ?, ?, ?, ?, ?, ?)`,
   );
   for (const item of order.items) {
-    insertItem.run(order.id, item.productId, item.quantity, item.note ?? null);
+    insertItem.run(
+      order.id,
+      item.productId,
+      item.name,
+      item.unitPriceCents,
+      item.lineTotalCents,
+      item.quantity,
+      item.note ?? null,
+    );
   }
 
   if (idempotencyKey !== undefined) {
@@ -276,8 +380,13 @@ function insertOrder(db: Db, input: CreateOrderInput, idempotencyKey?: string): 
  * Não há registro "em andamento": o lock de escrita dura até o commit ou o rollback.
  * Se duas conexões passarem da leitura ao mesmo tempo, a PRIMARY KEY impede a segunda
  * inserção e a tentativa seguinte relê o pedido já commitado.
+ * A repetição devolve o `response_json` original. Não relê o cardápio nem o pedido migrado.
  */
-export function createOrder(db: Db, input: CreateOrderInput, idempotencyKey?: string): Order {
+export function createOrder(
+  db: Db,
+  input: CreateOrderInput,
+  idempotencyKey?: string,
+): StoredOrderResponse {
   try {
     return runCreateOrder(db, input, idempotencyKey);
   } catch (error) {
@@ -289,13 +398,17 @@ export function createOrder(db: Db, input: CreateOrderInput, idempotencyKey?: st
   return runCreateOrder(db, input, idempotencyKey);
 }
 
-function runCreateOrder(db: Db, input: CreateOrderInput, idempotencyKey?: string): Order {
+function runCreateOrder(
+  db: Db,
+  input: CreateOrderInput,
+  idempotencyKey?: string,
+): StoredOrderResponse {
   db.exec('BEGIN IMMEDIATE');
 
   try {
     const order =
       idempotencyKey === undefined
-        ? insertOrder(db, input)
+        ? storedOrderResponseFromOrder(insertOrder(db, input))
         : createIdempotentOrder(db, input, idempotencyKey);
     db.exec('COMMIT');
     return order;
@@ -305,13 +418,17 @@ function runCreateOrder(db: Db, input: CreateOrderInput, idempotencyKey?: string
   }
 }
 
-function createIdempotentOrder(db: Db, input: CreateOrderInput, idempotencyKey: string): Order {
+function createIdempotentOrder(
+  db: Db,
+  input: CreateOrderInput,
+  idempotencyKey: string,
+): StoredOrderResponse {
   const existing = findIdempotencyKey(db, idempotencyKey);
   if (existing) {
     return replayIdempotentOrder(db, input, existing);
   }
 
-  return insertOrder(db, input, idempotencyKey);
+  return storedOrderResponseFromOrder(insertOrder(db, input, idempotencyKey));
 }
 
 /** Lista pedidos com seus itens, na ordem estável da fila (mais antigo primeiro). */

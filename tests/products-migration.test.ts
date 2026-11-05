@@ -160,7 +160,16 @@ describe('migração de ingredients em banco já existente', () => {
         id: 'o_legacy',
         table: '4',
         status: 'received',
-        items: [{ productId: 'p_legacy', quantity: 1, note: 'sem molho' }],
+        items: [
+          {
+            productId: 'p_legacy',
+            name: 'Prato antigo',
+            quantity: 1,
+            unitPriceCents: 2500,
+            lineTotalCents: 2500,
+            note: 'sem molho',
+          },
+        ],
         totalCents: 2500,
         createdAt: '2026-10-16T18:00:00.000Z',
       },
@@ -307,6 +316,112 @@ describe('migração de ingredients em banco já existente', () => {
     };
     check.close();
     expect(row).toEqual({ name: 'Prato antigo', price_cents: 2500 });
+  });
+
+  it('não grava total de migração fora da faixa segura e tenta de novo depois', async () => {
+    const path = createLegacyDatabase();
+    const db = new DatabaseSync(path);
+    db.prepare('UPDATE products SET price_cents = ? WHERE id = ?').run(2, 'p_legacy');
+    db.prepare('UPDATE orders SET total_cents = ? WHERE id = ?').run(
+      Number.MAX_SAFE_INTEGER,
+      'o_legacy',
+    );
+    db.prepare('UPDATE order_items SET quantity = ?, note = NULL WHERE order_id = ?').run(
+      Number.MAX_SAFE_INTEGER,
+      'o_legacy',
+    );
+    db.close();
+
+    const currentApp = await openApp(path);
+    const listed = await currentApp.inject({ method: 'GET', url: '/orders' });
+    expect(listed.statusCode).toBe(200);
+    expect(listed.json()).toEqual([
+      {
+        id: 'o_legacy',
+        table: '4',
+        status: 'received',
+        items: [],
+        totalCents: Number.MAX_SAFE_INTEGER,
+        createdAt: '2026-10-16T18:00:00.000Z',
+      },
+    ]);
+
+    const detail = await currentApp.inject({ method: 'GET', url: '/orders/o_legacy' });
+    expect(detail.statusCode).toBe(200);
+    expect(detail.json().items).toEqual([]);
+
+    const patched = await currentApp.inject({
+      method: 'PATCH',
+      url: '/orders/o_legacy/status',
+      payload: { status: 'preparing' },
+    });
+    expect(patched.statusCode).toBe(200);
+    expect(patched.json()).toMatchObject({ id: 'o_legacy', status: 'preparing', items: [] });
+    await currentApp.close();
+    app = undefined;
+
+    const blocked = new DatabaseSync(path);
+    const blockedItem = blocked
+      .prepare(
+        `SELECT product_name, unit_price_cents, line_total_cents, quantity
+         FROM order_items WHERE order_id = ?`,
+      )
+      .get('o_legacy') as {
+      product_name: string;
+      unit_price_cents: number | null;
+      line_total_cents: number | null;
+      quantity: number;
+    };
+    expect(blockedItem).toEqual({
+      product_name: 'Prato antigo',
+      unit_price_cents: null,
+      line_total_cents: null,
+      quantity: Number.MAX_SAFE_INTEGER,
+    });
+    blocked.prepare('UPDATE products SET price_cents = ? WHERE id = ?').run(1, 'p_legacy');
+    blocked.close();
+
+    const reconciled = await openApp(path);
+    const recovered = await reconciled.inject({ method: 'GET', url: '/orders/o_legacy' });
+    expect(recovered.statusCode).toBe(200);
+    expect(recovered.json().items).toEqual([
+      {
+        productId: 'p_legacy',
+        name: 'Prato antigo',
+        quantity: Number.MAX_SAFE_INTEGER,
+        unitPriceCents: 1,
+        lineTotalCents: Number.MAX_SAFE_INTEGER,
+      },
+    ]);
+  });
+
+  it('migra quantidade no limite seguro quando o preço unitário é 1', async () => {
+    const path = createLegacyDatabase();
+    const db = new DatabaseSync(path);
+    db.prepare('UPDATE products SET price_cents = ? WHERE id = ?').run(1, 'p_legacy');
+    db.prepare('UPDATE orders SET total_cents = ? WHERE id = ?').run(
+      Number.MAX_SAFE_INTEGER,
+      'o_legacy',
+    );
+    db.prepare('UPDATE order_items SET quantity = ? WHERE order_id = ?').run(
+      Number.MAX_SAFE_INTEGER,
+      'o_legacy',
+    );
+    db.close();
+
+    const currentApp = await openApp(path);
+    const detail = await currentApp.inject({ method: 'GET', url: '/orders/o_legacy' });
+    expect(detail.statusCode).toBe(200);
+    expect(detail.json().items).toEqual([
+      {
+        productId: 'p_legacy',
+        name: 'Prato antigo',
+        quantity: Number.MAX_SAFE_INTEGER,
+        unitPriceCents: 1,
+        lineTotalCents: Number.MAX_SAFE_INTEGER,
+        note: 'sem molho',
+      },
+    ]);
   });
 
   it('não transforma JSON persistido inválido em lista vazia', async () => {

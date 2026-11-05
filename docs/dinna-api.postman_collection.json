@@ -17,6 +17,10 @@
     {
       "key": "createdProductId",
       "value": ""
+    },
+    {
+      "key": "orderId",
+      "value": ""
     }
   ],
   "item": [
@@ -244,7 +248,17 @@
                 }
               ]
             },
-            "description": "Fila do restaurante. Ainda não implementado."
+            "description": "Fila do restaurante. Itens vêm com snapshot de nome e preços."
+          },
+          "response": []
+        },
+        {
+          "name": "GET /orders/:id",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": "{{baseUrl}}/orders/{{orderId}}",
+            "description": "Detalhe do pedido. Defina `orderId` com o id de um POST /orders. 404 ORDER_NOT_FOUND se não existir."
           },
           "response": []
         },

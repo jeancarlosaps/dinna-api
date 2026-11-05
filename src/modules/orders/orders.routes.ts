@@ -2,9 +2,10 @@ import type { FastifyInstance, FastifyPluginAsync } from 'fastify';
 import type { Db } from '../../db/client.js';
 import type { CreateOrderInput, OrderListQuery, UpdateOrderStatusInput } from '../../db/types.js';
 import { parseIdempotencyKey } from './order-idempotency.js';
-import { createOrder, listOrders, updateOrderStatus } from './orders.repository.js';
+import { createOrder, getOrderById, listOrders, updateOrderStatus } from './orders.repository.js';
 
-const orderItemSchema = {
+/** Body de criação: só referência ao cardápio. */
+const createOrderItemSchema = {
   type: 'object',
   additionalProperties: false,
   required: ['productId', 'quantity'],
@@ -15,7 +16,41 @@ const orderItemSchema = {
   },
 } as const;
 
-const orderResponseSchema = {
+/** GET e PATCH: snapshot de nome e preços obrigatório. */
+export const orderItemResponseSchema = {
+  type: 'object',
+  additionalProperties: false,
+  required: ['productId', 'name', 'quantity', 'unitPriceCents', 'lineTotalCents'],
+  properties: {
+    productId: { type: 'string', minLength: 1 },
+    name: { type: 'string', minLength: 1 },
+    quantity: { type: 'integer', minimum: 1, maximum: Number.MAX_SAFE_INTEGER },
+    unitPriceCents: { type: 'integer', minimum: 0 },
+    lineTotalCents: { type: 'integer', minimum: 0 },
+    note: { type: 'string', maxLength: 200 },
+  },
+} as const;
+
+/**
+ * POST 201: o snapshot entra na resposta quando foi gravado.
+ * Replay de `response_json` anterior não traz `name` nem preços;
+ * o serializer não pode exigir esses campos nem preenchê-los.
+ */
+export const createOrderItemResponseSchema = {
+  type: 'object',
+  additionalProperties: false,
+  required: ['productId', 'quantity'],
+  properties: {
+    productId: { type: 'string', minLength: 1 },
+    name: { type: 'string', minLength: 1 },
+    quantity: { type: 'integer', minimum: 1, maximum: Number.MAX_SAFE_INTEGER },
+    unitPriceCents: { type: 'integer', minimum: 0 },
+    lineTotalCents: { type: 'integer', minimum: 0 },
+    note: { type: 'string', maxLength: 200 },
+  },
+} as const;
+
+export const orderResponseSchema = {
   type: 'object',
   additionalProperties: false,
   required: ['id', 'table', 'status', 'items', 'totalCents', 'createdAt'],
@@ -23,7 +58,21 @@ const orderResponseSchema = {
     id: { type: 'string' },
     table: { type: 'string' },
     status: { type: 'string', enum: ['received', 'preparing', 'ready', 'finished'] },
-    items: { type: 'array', items: orderItemSchema },
+    items: { type: 'array', items: orderItemResponseSchema },
+    totalCents: { type: 'integer', minimum: 0 },
+    createdAt: { type: 'string', format: 'date-time' },
+  },
+} as const;
+
+export const createOrderResponseSchema = {
+  type: 'object',
+  additionalProperties: false,
+  required: ['id', 'table', 'status', 'items', 'totalCents', 'createdAt'],
+  properties: {
+    id: { type: 'string' },
+    table: { type: 'string' },
+    status: { type: 'string', enum: ['received', 'preparing', 'ready', 'finished'] },
+    items: { type: 'array', items: createOrderItemResponseSchema },
     totalCents: { type: 'integer', minimum: 0 },
     createdAt: { type: 'string', format: 'date-time' },
   },
@@ -49,6 +98,24 @@ export function ordersRoutes(db: Db): FastifyPluginAsync {
         },
       },
       async (request) => listOrders(db, request.query),
+    );
+
+    app.get<{ Params: { id: string } }>(
+      '/orders/:id',
+      {
+        schema: {
+          params: {
+            type: 'object',
+            additionalProperties: false,
+            required: ['id'],
+            properties: { id: { type: 'string', minLength: 1 } },
+          },
+          response: {
+            200: orderResponseSchema,
+          },
+        },
+      },
+      async (request) => getOrderById(db, request.params.id),
     );
 
     app.patch<{ Params: { id: string }; Body: UpdateOrderStatusInput }>(
@@ -87,11 +154,11 @@ export function ordersRoutes(db: Db): FastifyPluginAsync {
             required: ['table', 'items'],
             properties: {
               table: { type: 'string', minLength: 1 },
-              items: { type: 'array', minItems: 1, items: orderItemSchema },
+              items: { type: 'array', minItems: 1, items: createOrderItemSchema },
             },
           },
           response: {
-            201: orderResponseSchema,
+            201: createOrderResponseSchema,
           },
         },
       },

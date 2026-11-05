@@ -94,7 +94,7 @@ Exemplo só de formato, distinto do cardápio de demonstração:
 "ingredients": ["Pão", "Queijo cheddar"]
 ```
 
-### OrderItem
+### OrderItem (body de `POST /orders`)
 
 ```json
 { "productId": "p1", "quantity": 2, "note": "sem cebola" }
@@ -106,6 +106,34 @@ Exemplo só de formato, distinto do cardápio de demonstração:
 | `quantity`  | `number` | sim         | Inteiro seguro ≥ 1; total precisa caber em centavos exatos |
 | `note`      | `string` | não         | Máx. 200; observação do cliente                            |
 
+### OrderItem (resposta)
+
+Snapshot do cardápio no momento da criação. Não muda se o produto for editado depois.
+
+```json
+{
+  "productId": "p1",
+  "name": "Burger Clássico",
+  "quantity": 2,
+  "unitPriceCents": 3290,
+  "lineTotalCents": 6580,
+  "note": "sem cebola"
+}
+```
+
+| Campo            | Tipo     | Obrigatório | Notas                                |
+| ---------------- | -------- | ----------- | ------------------------------------ |
+| `productId`      | `string` | sim         | Referência ao produto                |
+| `name`           | `string` | sim         | Nome no momento da criação           |
+| `quantity`       | `number` | sim         | Inteiro ≥ 1                          |
+| `unitPriceCents` | `number` | sim         | Preço unitário (centavos) na criação |
+| `lineTotalCents` | `number` | sim         | `unitPriceCents × quantity`          |
+| `note`           | `string` | não         | Observação do cliente                |
+
+`GET /orders`, `GET /orders/:id` e `PATCH /orders/:id/status` exigem este item completo: `name`, `unitPriceCents` e `lineTotalCents` são obrigatórios.
+
+`POST /orders` de um pedido novo também devolve o snapshot. A repetição de uma `Idempotency-Key` já gravada devolve o `response_json` original. Se esse registro é anterior ao snapshot, esses três campos não vêm no corpo. A repetição não os completa com o cardápio atual, não usa o pedido migrado e não regrava o JSON.
+
 ### Order
 
 ```json
@@ -113,20 +141,29 @@ Exemplo só de formato, distinto do cardápio de demonstração:
   "id": "o1",
   "table": "12",
   "status": "received",
-  "items": [{ "productId": "p1", "quantity": 2, "note": "sem cebola" }],
+  "items": [
+    {
+      "productId": "p1",
+      "name": "Burger Clássico",
+      "quantity": 2,
+      "unitPriceCents": 3290,
+      "lineTotalCents": 6580,
+      "note": "sem cebola"
+    }
+  ],
   "totalCents": 6580,
   "createdAt": "2026-10-16T18:00:00Z"
 }
 ```
 
-| Campo        | Tipo          | Obrigatório    | Notas                                              |
-| ------------ | ------------- | -------------- | -------------------------------------------------- |
-| `id`         | `string`      | sim (resposta) | Gerado pela API                                    |
-| `table`      | `string`      | sim            | Identificador da mesa (ex.: `"12"`)                |
-| `status`     | `string`      | sim            | Ver ciclo abaixo                                   |
-| `items`      | `OrderItem[]` | sim            | Mín. 1 item                                        |
-| `totalCents` | `number`      | sim (resposta) | Soma `priceCents × quantity` no momento da criação |
-| `createdAt`  | `string`      | sim (resposta) | ISO-8601 UTC                                       |
+| Campo        | Tipo          | Obrigatório    | Notas                                           |
+| ------------ | ------------- | -------------- | ----------------------------------------------- |
+| `id`         | `string`      | sim (resposta) | Gerado pela API                                 |
+| `table`      | `string`      | sim            | Identificador da mesa (ex.: `"12"`)             |
+| `status`     | `string`      | sim            | Ver ciclo abaixo                                |
+| `items`      | `OrderItem[]` | sim            | Mín. 1 item (resposta enriquecida)              |
+| `totalCents` | `number`      | sim (resposta) | Soma dos `lineTotalCents` no momento da criação |
+| `createdAt`  | `string`      | sim (resposta) | ISO-8601 UTC                                    |
 
 #### Ciclo de status
 
@@ -161,7 +198,8 @@ Qualquer outro salto ou regressão → `409 INVALID_STATUS_TRANSITION`.
 | `POST`   | `/products`          | R0/R1   | **Implementado**      | Restaurante                              |
 | `PUT`    | `/products/:id`      | R0/R1   | **Implementado**      | Restaurante                              |
 | `DELETE` | `/products/:id`      | R0/R1   | **Implementado**      | Restaurante (soft-delete)                |
-| `GET`    | `/orders`            | R1      | Contrato              | Restaurante (fila)                       |
+| `GET`    | `/orders`            | R1      | **Implementado**      | Restaurante (fila)                       |
+| `GET`    | `/orders/:id`        | R1      | **Implementado**      | Ambos (detalhe)                          |
 | `POST`   | `/orders`            | R1      | **Implementado**      | Cliente (mesa)                           |
 | `PATCH`  | `/orders/:id/status` | R1      | **Implementado**      | Restaurante                              |
 | `POST`   | `/ai/recommendation` | R2      | Contrato (Fora do R1) | Cliente                                  |
@@ -281,9 +319,18 @@ Lista pedidos da fila. Sem paginação no MVP.
 | `table`  | `string` | não         | —       | Filtra pela mesa              |
 
 **200 OK** — array de `Order`, ordenado por `createdAt` ascendente (mais antigo primeiro — fila).
-Cada item contém `id`, `table`, `status`, `items`, `totalCents` e `createdAt`. Cada elemento de `items` contém `productId`, `quantity` e, quando informado, `note`.
+Cada item contém `id`, `table`, `status`, `items`, `totalCents` e `createdAt`. Cada elemento de `items` contém `productId`, `name`, `quantity`, `unitPriceCents`, `lineTotalCents` e, quando informado, `note`.
 
 `status` aceita somente `received`, `preparing`, `ready` ou `finished`; `table` é comparada exatamente. Os filtros podem ser combinados. Consultas sem resultados retornam `[]`; parâmetros inválidos retornam **400 `VALIDATION_ERROR`**.
+
+---
+
+### `GET /orders/:id`
+
+Retorna um pedido completo (mesma forma de `Order` da lista), com itens e snapshot de nome/preços.
+
+**200 OK** — um `Order`.  
+**404** — `{ "error": { "code": "ORDER_NOT_FOUND", "message": "..." } }`
 
 ---
 
@@ -303,7 +350,9 @@ Sem o header, cada `POST` cria um pedido novo. Esse é o comportamento dos clien
 Com o header:
 
 - Chave válida e ainda não usada grava o pedido e a chave na **mesma transação** e responde **201** com o `Order`.
-- A mesma chave e um payload semanticamente equivalente devolvem **201** com o corpo original da criação (mesmo `id`, `status`, itens, `totalCents` e `createdAt`), sem criar outro pedido. Um `PATCH` posterior muda o pedido persistido e a resposta de `GET /orders`, mas não altera essa repetição do `POST`. Produto que fica indisponível ou muda de `priceCents` depois da criação também não altera essa repetição: a consulta da chave ocorre antes das validações do catálogo atual.
+- A mesma chave e um payload semanticamente equivalente devolvem **201** com o corpo original da criação (mesmo `id`, `status`, itens, `totalCents` e `createdAt`), sem criar outro pedido. Um `PATCH` posterior muda o pedido persistido e a resposta de `GET /orders`, mas não altera essa repetição do `POST`. Produto que fica indisponível ou muda de nome ou `priceCents` depois da criação também não altera essa repetição: a consulta da chave ocorre antes das validações do catálogo atual, e o replay não reconstrói a resposta a partir do estado atual.
+- Pedido criado por esta versão grava e repete o snapshot completo (`name`, `unitPriceCents`, `lineTotalCents`). Chave gravada antes do snapshot repete o corpo legado, sem esses campos. A repetição não consulta o cardápio, não recalcula preços e não substitui o JSON pelo pedido que `GET /orders/:id` devolve depois da migração. A linha em `idempotency_keys` não é reescrita.
+- `GET /orders`, `GET /orders/:id` e `PATCH /orders/:id/status` continuam na representação enriquecida. Pedido antigo recebe o snapshot na migração de `order_items`, a partir do cardápio da abertura. Essa representação não alimenta o replay do `POST`.
 - A mesma chave e um payload diferente respondem **409** `IDEMPOTENCY_KEY_CONFLICT` e não criam pedido. A chave continua associada ao primeiro pedido.
 - Header presente e inválido (vazio, não UUID, UUID nulo ou repetido) responde **400** `VALIDATION_ERROR` e não cria pedido.
 - Produto inexistente ou indisponível responde **404** `PRODUCT_NOT_FOUND` e **não consome** a chave: uma tentativa seguinte, com a mesma chave e um body válido, pode criar o pedido.
@@ -344,7 +393,8 @@ Idempotency-Key: 550e8400-e29b-41d4-a716-446655440000
 }
 ```
 
-**201 Created** — `Order` completo, tanto na criação quanto na repetição equivalente.  
+**201 Created** — na criação, `Order` com snapshot completo. Na repetição, o corpo originalmente gravado: snapshot completo se o pedido nasceu nesta versão, ou o corpo legado se a chave é anterior ao snapshot.
+
 **400** — `VALIDATION_ERROR` (body inválido; lista vazia; `quantity` &lt; 1 ou insegura; total fora da faixa de inteiros seguros; `Idempotency-Key` presente e inválida).
 
 **404** — `PRODUCT_NOT_FOUND` se algum `productId` não existir **ou** estiver `available: false`. A chave, se enviada, não fica gravada.
@@ -361,8 +411,21 @@ Exemplo de resposta:
   "table": "12",
   "status": "received",
   "items": [
-    { "productId": "p1", "quantity": 2, "note": "sem cebola" },
-    { "productId": "p2", "quantity": 1 }
+    {
+      "productId": "p1",
+      "name": "Burger Clássico",
+      "quantity": 2,
+      "unitPriceCents": 3290,
+      "lineTotalCents": 6580,
+      "note": "sem cebola"
+    },
+    {
+      "productId": "p2",
+      "name": "Burger Smoke",
+      "quantity": 1,
+      "unitPriceCents": 3890,
+      "lineTotalCents": 3890
+    }
   ],
   "totalCents": 10470,
   "createdAt": "2026-10-25T18:00:00.000Z"
@@ -462,6 +525,7 @@ Sugere produtos com base no cardápio real. A API **só** devolve `productId` qu
 - Seed: `src/db/seed.ts` (`p1`–`p12`) na primeira abertura com a tabela `products` vazia. Vários nascem com ingredientes ilustrativos. `p5` e `p6` nascem com `[]`. A abertura não regrava um banco que já tem produtos.
 - Soft-delete e filtros de `GET /products` seguem este contrato.
 - `idempotency_keys` guarda a chave, o fingerprint SHA-256 do body canônico, o `order_id`, `created_at` e o JSON da resposta original. A repetição do `POST` devolve essa resposta, não o pedido depois de uma mudança de status. A linha não é apagada por idade.
+- `order_items` guarda snapshot de `product_name`, `unit_price_cents` e `line_total_cents` na criação. Banco antigo recebe essas colunas na abertura (`ALTER` + backfill a partir do cardápio atual). Esse backfill não reescreve `idempotency_keys.response_json`. O replay do `POST` continua devolvendo o JSON gravado, não o item migrado. Se o preço atual vezes a quantidade não couber em inteiro seguro, a migração não grava `unit_price_cents` nem `line_total_cents` dessa linha e não coloca outro número no lugar. O nome pode ser preenchido. Uma abertura seguinte tenta o snapshot de preço de novo.
 
 ### Coluna `products.ingredients`
 

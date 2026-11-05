@@ -156,9 +156,10 @@ function createOldCatalog(): string {
        VALUES (?, ?, ?, ?, ?)`,
     ).run('o_demo', '7', 'preparing', 3290, '2026-10-20T12:00:00.000Z');
     db.prepare(
-      `INSERT INTO order_items (order_id, product_id, quantity, note)
-       VALUES (?, ?, ?, ?)`,
-    ).run('o_demo', 'p1', 1, 'sem cebola');
+      `INSERT INTO order_items (
+         order_id, product_id, product_name, unit_price_cents, line_total_cents, quantity, note
+       ) VALUES (?, ?, ?, ?, ?, ?, ?)`,
+    ).run('o_demo', 'p1', 'Burger Clássico', 3290, 3290, 1, 'sem cebola');
     db.prepare(
       `INSERT INTO idempotency_keys (key, request_hash, order_id, created_at, response_json)
        VALUES (?, ?, ?, ?, ?)`,
@@ -266,7 +267,16 @@ describe('ingredientes ilustrativos do cardápio de demonstração', () => {
         id: 'o_demo',
         table: '7',
         status: 'preparing',
-        items: [{ productId: 'p1', quantity: 1, note: 'sem cebola' }],
+        items: [
+          {
+            productId: 'p1',
+            name: 'Burger Clássico',
+            quantity: 1,
+            unitPriceCents: 3290,
+            lineTotalCents: 3290,
+            note: 'sem cebola',
+          },
+        ],
         totalCents: 3290,
         createdAt: '2026-10-20T12:00:00.000Z',
       },
@@ -380,7 +390,16 @@ describe('ingredientes ilustrativos do cardápio de demonstração', () => {
         id: 'o_demo',
         table: '7',
         status: 'preparing',
-        items: [{ productId: 'p1', quantity: 1, note: 'sem cebola' }],
+        items: [
+          {
+            productId: 'p1',
+            name: 'Burger Clássico',
+            quantity: 1,
+            unitPriceCents: 3290,
+            lineTotalCents: 3290,
+            note: 'sem cebola',
+          },
+        ],
         totalCents: 3290,
         createdAt: '2026-10-20T12:00:00.000Z',
       },

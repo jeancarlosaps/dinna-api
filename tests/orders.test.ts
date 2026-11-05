@@ -45,7 +45,16 @@ describe('orders', () => {
         id: firstOrder.json().id,
         table: '12',
         status: 'received',
-        items: [{ productId: 'p1', quantity: 2, note: 'sem cebola' }],
+        items: [
+          {
+            productId: 'p1',
+            name: 'Burger Clássico',
+            quantity: 2,
+            unitPriceCents: 3290,
+            lineTotalCents: 6580,
+            note: 'sem cebola',
+          },
+        ],
         totalCents: 6580,
         createdAt: firstOrder.json().createdAt,
       },
@@ -58,6 +67,35 @@ describe('orders', () => {
     const invalidStatus = await currentApp.inject({ method: 'GET', url: '/orders?status=unknown' });
     expect(invalidStatus.statusCode).toBe(400);
     expect(invalidStatus.json()).toMatchObject({ error: { code: 'VALIDATION_ERROR' } });
+  });
+
+  it('GET /orders/:id retorna o pedido completo ou ORDER_NOT_FOUND', async () => {
+    const currentApp = buildApp();
+    app = currentApp;
+
+    const created = await currentApp.inject({
+      method: 'POST',
+      url: '/orders',
+      payload: {
+        table: '12',
+        items: [
+          { productId: 'p1', quantity: 2, note: 'sem cebola' },
+          { productId: 'p2', quantity: 1 },
+        ],
+      },
+    });
+    expect(created.statusCode).toBe(201);
+    const createdBody = created.json();
+
+    const ok = await currentApp.inject({ method: 'GET', url: `/orders/${createdBody.id}` });
+    expect(ok.statusCode).toBe(200);
+    expect(ok.json()).toEqual(createdBody);
+
+    const missing = await currentApp.inject({ method: 'GET', url: '/orders/o_missing' });
+    expect(missing.statusCode).toBe(404);
+    expect(missing.json()).toEqual({
+      error: { code: 'ORDER_NOT_FOUND', message: 'Pedido o_missing não encontrado' },
+    });
   });
 
   it('PATCH /orders/:id/status avança o pedido um passo por vez e retorna os itens', async () => {
@@ -81,7 +119,16 @@ describe('orders', () => {
         id: created.json().id,
         table: '12',
         status,
-        items: [{ productId: 'p1', quantity: 1, note: 'sem cebola' }],
+        items: [
+          {
+            productId: 'p1',
+            name: 'Burger Clássico',
+            quantity: 1,
+            unitPriceCents: 3290,
+            lineTotalCents: 3290,
+            note: 'sem cebola',
+          },
+        ],
       });
     }
 
@@ -156,13 +203,32 @@ describe('orders', () => {
       table: '12',
       status: 'received',
       items: [
-        { productId: 'p1', quantity: 2, note: 'sem cebola' },
-        { productId: 'p2', quantity: 1 },
+        {
+          productId: 'p1',
+          name: 'Burger Clássico',
+          quantity: 2,
+          unitPriceCents: 3290,
+          lineTotalCents: 6580,
+          note: 'sem cebola',
+        },
+        {
+          productId: 'p2',
+          name: 'Burger Smoke',
+          quantity: 1,
+          unitPriceCents: 3890,
+          lineTotalCents: 3890,
+        },
       ],
       totalCents: 10470,
     });
-    expect(response.json().id).toMatch(/^o_[0-9a-f-]{36}$/);
-    expect(response.json().createdAt).toMatch(/^\d{4}-\d{2}-\d{2}T/);
+    const body = response.json();
+    const linesSum = body.items.reduce(
+      (sum: number, item: { lineTotalCents: number }) => sum + item.lineTotalCents,
+      0,
+    );
+    expect(body.totalCents).toBe(linesSum);
+    expect(body.id).toMatch(/^o_[0-9a-f-]{36}$/);
+    expect(body.createdAt).toMatch(/^\d{4}-\d{2}-\d{2}T/);
   });
 
   it('POST /orders rejeita corpo inválido e lista vazia', async () => {
