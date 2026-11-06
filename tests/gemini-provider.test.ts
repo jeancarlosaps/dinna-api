@@ -64,6 +64,7 @@ describe('provedor Gemini', () => {
     });
 
     await expect(provider(request)).resolves.toEqual(['p2']);
+    expect(GEMINI_MODEL).toBe('gemini-3.6-flash');
     expect(capturedUrl).toBe(GEMINI_ENDPOINT);
     expect(capturedUrl).toContain(GEMINI_MODEL);
     expect(capturedUrl).not.toContain('secret-key');

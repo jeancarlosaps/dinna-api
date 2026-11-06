@@ -5,7 +5,7 @@ import type { NormalizedPreferences } from './preferences.js';
  * Modelo com saída estruturada na API Gemini, conforme a documentação
  * de structured output. A assinatura de estudante não é crédito desta API.
  */
-export const GEMINI_MODEL = 'gemini-3.8-flash';
+export const GEMINI_MODEL = 'gemini-3.6-flash';
 
 export const GEMINI_ENDPOINT = `https://generativelanguage.googleapis.com/v1beta/models/${GEMINI_MODEL}:generateContent`;
 
