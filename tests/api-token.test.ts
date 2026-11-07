@@ -202,6 +202,42 @@ describe('proteção por token', () => {
       }
     });
 
+    it('recusa sem token antes de ler o body, mesmo malformado ou acima do limite', async () => {
+      const current = protectedApp();
+      const json = { 'content-type': 'application/json' };
+      const oversized = JSON.stringify({ table: 'x'.repeat(1024 * 1024 + 1), items: [] });
+
+      for (const url of ['/orders', '/products', '/ai/recommendation']) {
+        const malformed = await current.inject({
+          method: 'POST',
+          url,
+          headers: json,
+          payload: '{',
+        });
+        expect(malformed.statusCode).toBe(401);
+        expect(malformed.json()).toEqual(UNAUTHORIZED);
+
+        const large = await current.inject({
+          method: 'POST',
+          url,
+          headers: json,
+          payload: oversized,
+        });
+        expect(large.statusCode).toBe(401);
+        expect(large.json()).toEqual(UNAUTHORIZED);
+      }
+
+      // Com token, os mesmos bodies chegam ao parser: confirma que o caso acima não é trivial.
+      const withValidToken = await current.inject(
+        withToken({ method: 'POST', url: '/orders', headers: json, payload: '{' }),
+      );
+      expect(withValidToken.statusCode).toBe(400);
+      const tooLarge = await current.inject(
+        withToken({ method: 'POST', url: '/orders', headers: json, payload: oversized }),
+      );
+      expect(tooLarge.statusCode).toBe(413);
+    });
+
     it('escrita sem token não grava nada', async () => {
       const current = protectedApp();
 
