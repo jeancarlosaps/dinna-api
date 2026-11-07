@@ -336,7 +336,7 @@
               }
             },
             "url": "{{baseUrl}}/ai/recommendation",
-            "description": "Recomendação (R2). Contrato em docs/api-contract.md e docs/ai-recommendation-design.md. Ainda não implementado. preferences é objeto, não texto."
+            "description": "Recomendação (R2), implementada. Sem GEMINI_API_KEY a resposta usa provider unavailable. preferences é objeto, não texto. Ver docs/api-contract.md."
           },
           "response": []
         }

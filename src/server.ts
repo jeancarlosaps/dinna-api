@@ -5,6 +5,11 @@ const env = loadEnv();
 const app = buildApp({
   logger: { level: env.logLevel },
   databasePath: env.databasePath,
+  recommendation: {
+    apiKey: env.geminiApiKey,
+    timeoutMs: env.geminiTimeoutMs,
+    diagnostics: env.geminiDiagnostics,
+  },
 });
 
 try {

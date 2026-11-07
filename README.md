@@ -3,7 +3,7 @@
 <p align="center">
   <picture>
     <source media="(prefers-reduced-motion: reduce)" srcset="docs/assets/readme/hero-still.svg" />
-    <img src="docs/assets/readme/hero.svg" alt="dinna. api — Da mesa à operação. Um serviço Fastify atende os perfis cliente e restaurante. Health e CRUD de produtos estão implementados, criação e consulta de pedidos fazem parte do módulo de pedidos, e atualização de status e recomendações seguem planejadas." width="1600" />
+    <img src="docs/assets/readme/hero.svg" alt="dinna. api — Da mesa à operação. Um serviço Fastify atende os perfis cliente e restaurante. Health, produtos, pedidos e a recomendação de pratos estão implementados." width="1600" />
   </picture>
 </p>
 
@@ -65,24 +65,24 @@ O Dinna é um app de pedidos feitos **dentro do restaurante** (não é delivery)
 
 ## 01 · Estado atual
 
-Fundação (R0) **em andamento**. Health, SQLite, seed de cardápio e CRUD de `/products` estão prontos. O módulo de pedidos permite criar, consultar e atualizar pedidos por `POST /orders`, `GET /orders` e `PATCH /orders/:id/status`; recomendações seguem no contrato.
+Fundação (R0) **em andamento**. Health, SQLite, seed de cardápio e CRUD de `/products` estão prontos. O módulo de pedidos permite criar, consultar e atualizar pedidos. `POST /ai/recommendation` sugere até três pratos do cardápio, com fallback determinístico se o Gemini não responder.
 
-| Item                                                                 | Situação                                       |
-| -------------------------------------------------------------------- | ---------------------------------------------- |
-| Servidor Fastify + TypeScript strict                                 | ✅ Implementado                                |
-| `GET /health`                                                        | ✅ Implementado e testado                      |
-| Formato único de erro (400 / 404 / `AppError` / 500)                 | ✅ Implementado e testado                      |
-| Validação de entrada com JSON Schema nativo do Fastify               | ✅ Em uso nas rotas de produtos                |
-| Variáveis de ambiente (`HOST`, `PORT`, `LOG_LEVEL`, `DATABASE_PATH`) | ✅ Implementado e testado                      |
-| Lint, format, typecheck, testes, build, CI                           | ✅ 63 testes · GitHub Actions                  |
-| `/products` (CRUD + filtros)                                         | ✅ Implementado e testado (SCRUM-25)           |
-| Persistência SQLite (`node:sqlite`) + seed                           | ✅ Implementado                                |
-| `POST /orders`                                                       | ✅ Implementado (SCRUM-45, SCRUM-89, SCRUM-90) |
-| `GET /orders`                                                        | ✅ Implementado e testado (SCRUM-47)           |
-| `GET /orders/:id`                                                    | ✅ Implementado e testado                      |
-| `PATCH /orders/:id/status`                                           | ✅ Implementado e testado (SCRUM-53)           |
-| `/ai/recommendation`                                                 | ⬜ Planejado (R2)                              |
-| Autenticação                                                         | ⬜ Fora do escopo atual                        |
+| Item                                                                                  | Situação                                       |
+| ------------------------------------------------------------------------------------- | ---------------------------------------------- |
+| Servidor Fastify + TypeScript strict                                                  | ✅ Implementado                                |
+| `GET /health`                                                                         | ✅ Implementado e testado                      |
+| Formato único de erro (400 / 404 / `AppError` / 500)                                  | ✅ Implementado e testado                      |
+| Validação de entrada com JSON Schema nativo do Fastify                                | ✅ Em uso nas rotas de produtos                |
+| Variáveis de ambiente (`HOST`, `PORT`, `LOG_LEVEL`, `DATABASE_PATH`, Gemini opcional) | ✅ Implementado e testado                      |
+| Lint, format, typecheck, testes, build, CI                                            | ✅ 63 testes · GitHub Actions                  |
+| `/products` (CRUD + filtros)                                                          | ✅ Implementado e testado (SCRUM-25)           |
+| Persistência SQLite (`node:sqlite`) + seed                                            | ✅ Implementado                                |
+| `POST /orders`                                                                        | ✅ Implementado (SCRUM-45, SCRUM-89, SCRUM-90) |
+| `GET /orders`                                                                         | ✅ Implementado e testado (SCRUM-47)           |
+| `GET /orders/:id`                                                                     | ✅ Implementado e testado                      |
+| `PATCH /orders/:id/status`                                                            | ✅ Implementado e testado (SCRUM-53)           |
+| `/ai/recommendation`                                                                  | ✅ Implementado (SCRUM-62)                     |
+| Autenticação                                                                          | ⬜ Fora do escopo atual                        |
 
 ---
 
@@ -110,7 +110,7 @@ flowchart LR
   REQ["Requisição HTTP"] --> F["Fastify<br/>buildApp()"]
   F --> VAL{"JSON Schema<br/>da rota"}
   VAL -- "inválido" --> EH["error handler<br/>400 VALIDATION_ERROR"]
-  VAL -- "válido" --> MOD["módulo<br/>health / products / orders"]
+  VAL -- "válido" --> MOD["módulo<br/>health / products / orders / recommendations"]
   MOD -- "AppError / erro" --> EH
   MOD --> DB["SQLite<br/>node:sqlite"]
   DB --> MOD
@@ -134,6 +134,7 @@ flowchart LR
 | [`src/modules/health/health.routes.ts`](src/modules/health/health.routes.ts)         | `GET /health`                                                                       |
 | [`src/modules/products/products.routes.ts`](src/modules/products/products.routes.ts) | CRUD `/products`                                                                    |
 | [`src/modules/orders/orders.routes.ts`](src/modules/orders/orders.routes.ts)         | Criação, consulta e atualização de pedidos                                          |
+| [`src/modules/recommendations/`](src/modules/recommendations/)                       | `POST /ai/recommendation`: seleção, Gemini opcional e fallback                      |
 
 ### Estrutura real
 
@@ -157,9 +158,15 @@ src/
 │   │   ├── orders.routes.ts
 │   │   ├── orders.repository.ts
 │   │   └── order-idempotency.ts
-│   └── products/
-│       ├── products.routes.ts
-│       └── products.repository.ts
+│   ├── products/
+│   │   ├── products.routes.ts
+│   │   └── products.repository.ts
+│   └── recommendations/
+│       ├── preferences.ts
+│       ├── selection.ts
+│       ├── provider.ts
+│       ├── recommend.ts
+│       └── recommendations.routes.ts
 └── shared/
     ├── errors/app-error.ts
     └── http/error-handler.ts
@@ -171,7 +178,10 @@ tests/
 ├── health.test.ts
 ├── orders.test.ts
 ├── orders-idempotency.test.ts
-└── products.test.ts
+├── products.test.ts
+├── recommendations.test.ts
+├── recommendation-selection.test.ts
+└── gemini-provider.test.ts
 docs/
 ├── api-contract.md          # contrato REST aceito (SCRUM-24)
 └── assets/readme/           # ilustrações deste README
@@ -205,14 +215,17 @@ cp .env.example .env
 
 ### Configuração de ambiente
 
-| Variável        | Padrão              | Descrição                                                                            |
-| --------------- | ------------------- | ------------------------------------------------------------------------------------ |
-| `HOST`          | `0.0.0.0`           | Interface de escuta. `0.0.0.0` permite o acesso de emuladores e dispositivos na rede |
-| `PORT`          | `3333`              | Porta HTTP (1–65535)                                                                 |
-| `LOG_LEVEL`     | `info`              | `fatal`, `error`, `warn`, `info`, `debug`, `trace` ou `silent`                       |
-| `DATABASE_PATH` | `data/dinna.sqlite` | Arquivo SQLite. Testes usam `:memory:` via `buildApp()`                              |
+| Variável             | Padrão              | Descrição                                                                            |
+| -------------------- | ------------------- | ------------------------------------------------------------------------------------ |
+| `HOST`               | `0.0.0.0`           | Interface de escuta. `0.0.0.0` permite o acesso de emuladores e dispositivos na rede |
+| `PORT`               | `3333`              | Porta HTTP (1–65535)                                                                 |
+| `LOG_LEVEL`          | `info`              | `fatal`, `error`, `warn`, `info`, `debug`, `trace` ou `silent`                       |
+| `DATABASE_PATH`      | `data/dinna.sqlite` | Arquivo SQLite. Testes usam `:memory:` via `buildApp()`                              |
+| `GEMINI_API_KEY`     | ausente             | Opcional. Sem chave, a recomendação usa o fallback e não chama a rede                |
+| `GEMINI_TIMEOUT_MS`  | `8000`              | Opcional. Inteiro de 1000 a 15000. Tempo limite da chamada ao Gemini                 |
+| `GEMINI_DIAGNOSTICS` | desligado           | Opcional. Só `1` ou `true`. Loga o estágio da chamada, sem chave, texto nem ids      |
 
-Valores inválidos fazem a API falhar ao iniciar, com mensagem explícita. O `.env` **nunca** é versionado; só o `.env.example`.
+Valores inválidos de `HOST`, `PORT`, `LOG_LEVEL`, `DATABASE_PATH` e `GEMINI_TIMEOUT_MS` fazem a API falhar ao iniciar, com mensagem explícita. `GEMINI_API_KEY` ausente ou em branco não impede a subida: a recomendação usa o fallback. O `.env` **nunca** é versionado; só o `.env.example`.
 
 ### Execução local
 
@@ -273,6 +286,56 @@ curl http://localhost:3333/nao-existe
 { "error": { "code": "NOT_FOUND", "message": "Rota GET /nao-existe não encontrada" } }
 ```
 
+### Recomendação de pratos
+
+`POST /ai/recommendation` lê o cardápio uma vez e devolve até três pratos. Sem `GEMINI_API_KEY`, a API não chama a rede: o fallback determinístico responde na hora. A assinatura Gemini Student não é crédito desta API. A chave, se existir, fica só no processo do backend.
+
+O modelo usado é `gemini-3.6-flash`, com saída estruturada, conforme a [documentação de structured output](https://ai.google.dev/gemini-api/docs/generate-content/structured-output). A chave é enviada no header `x-goog-api-key`, nunca na URL, no log ou no Flutter. Gere uma em [Google AI Studio](https://aistudio.google.com/apikey) e coloque em `.env`:
+
+```bash
+GEMINI_API_KEY=sua-chave
+GEMINI_TIMEOUT_MS=8000
+```
+
+`GEMINI_TIMEOUT_MS` é opcional. O padrão é 8000 ms, entre 1000 e 15000. Estouro, rede, JSON inválido ou nenhum id aproveitável caem no mesmo fallback. Para ver esse caminho sem chave, deixe a variável de fora e chame o exemplo abaixo. Uma chave inválida também cai no fallback, mas a chamada sai para a rede. Os testes cobrem timeout e rede com fake, sem internet.
+
+Exemplo com o seed, sem chave:
+
+```bash
+curl -s http://localhost:3333/ai/recommendation \
+  -H 'content-type: application/json' \
+  -d '{"table":"12","preferences":{"budget":"from_36_to_60","hunger":"normal","protein":"beef","style":"balanced","taste":"savory","restrictions":["no_onion"]},"limit":3}'
+```
+
+```json
+{
+  "provider": "unavailable",
+  "outcome": "suggestions",
+  "products": [
+    {
+      "productId": "p2",
+      "reason": "Carne, R$ 36–60, Salgado, sem cebola na lista cadastrada"
+    }
+  ]
+}
+```
+
+Os quatro resultados **200** possíveis:
+
+| Como ver                                                                                                       | `provider`    | `outcome`                |
+| -------------------------------------------------------------------------------------------------------------- | ------------- | ------------------------ |
+| Sem chave, body do exemplo, seed intacto                                                                       | `unavailable` | `suggestions`            |
+| Com chave e ao menos um id aceito do modelo. O teste `aceita ids do modelo` cobre o formato sem rede           | `answered`    | `suggestions`            |
+| `protein: chicken` ou `fish` no seed                                                                           | `not_called`  | `no_compatible_products` |
+| Restrição crítica compatível com a proteína, como `vegetarian` com `no_gluten`                                 | `not_called`  | `no_compatible_products` |
+| Nenhum produto `available: true`. `DELETE /products/:id` faz soft-delete; `PUT` com `available: true` restaura | `not_called`  | `empty_catalog`          |
+
+`no_lactose`, `vegan` e `no_seafood` seguem o mesmo 200 quando a proteína não os contradiz. `vegetarian` com `vegan` é válido e também esvazia o conjunto. `fish` com `no_seafood`, e `beef`, `chicken` ou `fish` com `vegan`, não são esse 200: respondem HTTP 400 com `VALIDATION_ERROR` antes do cardápio e do provedor.
+
+A lista de ingredientes é informativa. A API não afirma ausência de alergênico nem preparo livre de contaminação cruzada. `no_onion` só tira o que cita cebola e o que não tem lista cadastrada; o motivo diz “sem cebola na lista cadastrada”, não que o preparo esteja livre de cebola. Sem atributo alimentar confiável, restrição crítica não gera sugestão. A pessoa confirma com a equipe: “Tem alergia? Confirme os ingredientes com a equipe antes de pedir.”
+
+A validação dos ids do provedor e o fallback quando a chamada não serve já estão nesta rota, no mesmo conjunto elegível. Não há texto livre nem segunda rota. Uma versão futura pode interpretar uma frase e produzir este mesmo objeto; isso não faz parte desta entrega.
+
 ---
 
 ## 05 · Contratos REST
@@ -293,7 +356,7 @@ curl http://localhost:3333/nao-existe
 | `GET`    | `/orders/:id`        | R1      | **Implementado** |
 | `POST`   | `/orders`            | R1      | **Implementado** |
 | `PATCH`  | `/orders/:id/status` | R1      | **Implementado** |
-| `POST`   | `/ai/recommendation` | R2      | Planejado        |
+| `POST`   | `/ai/recommendation` | R2      | **Implementado** |
 
 Payloads, status e convenções estão em [`docs/api-contract.md`](docs/api-contract.md). O contrato foi **aceito** na **SCRUM-24** e é a fonte de verdade entre esta API e o app Flutter. `POST /orders` aceita o header opcional `Idempotency-Key` (SCRUM-89). Sem ele, cada chamada continua criando um pedido novo. Com a chave, a retenção é permanente (SCRUM-90): a mesma chave e o mesmo payload devolvem o snapshot original, qualquer que seja a idade da chave.
 
@@ -342,16 +405,19 @@ Todas as respostas de erro usam o mesmo formato:
 | `npm run format:check`     | Prettier, só verificando                                 |
 | `npm run build`            | Compila para `dist/`                                     |
 
-O que os 63 testes cobrem:
+O que os testes cobrem:
 
-| Arquivo                            | Cobre                                                                                                             |
-| ---------------------------------- | ----------------------------------------------------------------------------------------------------------------- |
-| `tests/health.test.ts`             | `GET /health` responde 200 com `{ "status": "ok" }`                                                               |
-| `tests/error-handler.test.ts`      | 404 padronizado, 400 de validação, `AppError` e 500 sem vazar o detalhe                                           |
-| `tests/env.test.ts`                | Valores padrão e rejeição de `PORT`, `LOG_LEVEL` e `DATABASE_PATH`                                                |
-| `tests/products.test.ts`           | Listagem/filtros, detalhe, create, update, soft-delete e erros                                                    |
-| `tests/orders.test.ts`             | Criação, consulta e atualização, transições, filtros e rollback                                                   |
-| `tests/orders-idempotency.test.ts` | Chave permanente, replay do snapshot, 409, concorrência, rollback, reinício, repetição tardia e catálogo alterado |
+| Arquivo                                  | Cobre                                                                                                             |
+| ---------------------------------------- | ----------------------------------------------------------------------------------------------------------------- |
+| `tests/health.test.ts`                   | `GET /health` responde 200 com `{ "status": "ok" }`                                                               |
+| `tests/error-handler.test.ts`            | 404 padronizado, 400 de validação, `AppError` e 500 sem vazar o detalhe                                           |
+| `tests/env.test.ts`                      | Valores padrão e rejeição de `PORT`, `LOG_LEVEL`, `DATABASE_PATH` e `GEMINI_TIMEOUT_MS`                           |
+| `tests/products.test.ts`                 | Listagem/filtros, detalhe, create, update, soft-delete e erros                                                    |
+| `tests/orders.test.ts`                   | Criação, consulta e atualização, transições, filtros e rollback                                                   |
+| `tests/orders-idempotency.test.ts`       | Chave permanente, replay do snapshot, 409, concorrência, rollback, reinício, repetição tardia e catálogo alterado |
+| `tests/recommendation-selection.test.ts` | Faixas, ordenação, tokens, restrição crítica e motivo                                                             |
+| `tests/recommendations.test.ts`          | Contrato HTTP, seed, fallback, ids do provedor e ausência de escrita no banco                                     |
+| `tests/gemini-provider.test.ts`          | `fetch` fake: timeout, rede, JSON inválido e corpo sem mesa nem chave                                             |
 
 ## 08 · CI
 
@@ -415,7 +481,7 @@ Os focos vêm da distribuição de issues no backlog (Atividade 2) e não são c
 
 ## 13 · Próximos passos
 
-1. **R2:** implementar `POST /ai/recommendation` conforme o contrato.
+1. A rota `POST /ai/recommendation` está na API. O formulário no Flutter segue na entrega do app.
 2. Sincronizar o `roadmap.svg` no [dinna-flutter](https://github.com/jeancarlosaps/dinna-flutter) se o status R0 mudar lá também.
 
 ## 14 · Links

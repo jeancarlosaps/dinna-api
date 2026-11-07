@@ -1,9 +1,9 @@
 # Recomendação — desenho da V1
 
-> **Status:** aceito como desenho (SCRUM-60). Sem código de produção.  
+> **Status:** aceito como desenho (SCRUM-60). A rota foi implementada na SCRUM-62.
 > O contrato HTTP normativo está em [`api-contract.md`](api-contract.md), na seção `POST /ai/recommendation`.  
 > Este arquivo define perguntas, regras, fallback, política alimentar e estados de tela.  
-> A rota ainda não existe. O formato preliminar, com `preferences` string e resposta `productIds` + `fallback`, fica revogado.
+> O formato preliminar, com `preferences` string e resposta `productIds` + `fallback`, fica revogado.
 
 ## Objetivo
 
@@ -15,13 +15,13 @@ O fluxo de referência é o do app cliente, no quadro “Me ajuda a escolher”.
 
 ### V1 — esta release
 
-Perguntas de escolha fixa, no Flutter, viram um objeto `preferences`. A API valida esse objeto, lê os produtos disponíveis e escolhe com uma função determinística. O mesmo objeto é a entrada de um provedor externo, quando a SCRUM-62 o ligar.
+Perguntas de escolha fixa, no Flutter, viram um objeto `preferences`. A API valida esse objeto, lê os produtos disponíveis e escolhe com uma função determinística. O mesmo objeto é a entrada do provedor externo, ligado pela SCRUM-62 quando há chave.
 
 Não entra nesta versão:
 
 - texto livre na tela ou no JSON;
 - segunda rota;
-- SDK ou chamada externa;
+- SDK de provedor; a chamada usa `fetch` nativo;
 - gravação de preferência, pedido ou carrinho;
 - campo antecipando a versão seguinte. `additionalProperties: false` recusa qualquer campo fora do contrato, inclusive `text`.
 
@@ -195,18 +195,18 @@ Não há lista de tokens para declarar glúten, lactose, vegano ou fruto do mar 
 
 Valores com `style` indiferente. `restrictions` vazio, salvo quando a linha diz o contrário. Catálogo = `p1`–`p12` do seed, com `p8` indisponível e bebidas de fora.
 
-| Preferências                                                        | Resultado esperado no fallback, `limit` 3                                                    |
-| ------------------------------------------------------------------- | -------------------------------------------------------------------------------------------- |
-| `up_to_20`, `normal`, `vegetarian`, `savory`, sem restrição         | só `p3`. Motivo: `Vegetariano, Até R$ 20, Salgado`                                           |
-| `from_36_to_60`, `big`, `beef`, `savory`, `no_onion`                | só `p2`. `p9` tem cebola. Motivo: `Carne, R$ 36–60, Salgado, sem cebola na lista cadastrada` |
-| `unlimited`, `little`, `beef`, `savory`, sem restrição              | `p1`, `p2`, `p9` (preço 3290, 3890, 4290)                                                    |
-| `unlimited`, `big`, `beef`, `savory`, sem restrição                 | `p9`, `p2`, `p1`                                                                             |
-| `unlimited`, `little`, `chicken`, `savory`                          | `no_compatible_products`. O seed não tem token de frango                                     |
-| `unlimited`, `normal`, `fish`, `savory`                             | `no_compatible_products`. O seed não tem token de peixe                                      |
-| qualquer uma com `no_gluten`, `no_lactose`, `vegan` ou `no_seafood` | `no_compatible_products`                                                                     |
-| `fish` + `no_seafood`, ou `beef` + `vegan`                          | `400`, sem consultar o cardápio                                                              |
-| nenhum `available: true`                                            | `empty_catalog`                                                                              |
-| preço 2050 ou 3550, faixa limitada                                  | fora. Com `unlimited`, a faixa deixa de excluir                                              |
+| Preferências                                                    | Resultado esperado no fallback, `limit` 3                                                    |
+| --------------------------------------------------------------- | -------------------------------------------------------------------------------------------- |
+| `up_to_20`, `normal`, `vegetarian`, `savory`, sem restrição     | só `p3`. Motivo: `Vegetariano, Até R$ 20, Salgado`                                           |
+| `from_36_to_60`, `big`, `beef`, `savory`, `no_onion`            | só `p2`. `p9` tem cebola. Motivo: `Carne, R$ 36–60, Salgado, sem cebola na lista cadastrada` |
+| `unlimited`, `little`, `beef`, `savory`, sem restrição          | `p1`, `p2`, `p9` (preço 3290, 3890, 4290)                                                    |
+| `unlimited`, `big`, `beef`, `savory`, sem restrição             | `p9`, `p2`, `p1`                                                                             |
+| `unlimited`, `little`, `chicken`, `savory`                      | `no_compatible_products`. O seed não tem token de frango                                     |
+| `unlimited`, `normal`, `fish`, `savory`                         | `no_compatible_products`. O seed não tem token de peixe                                      |
+| restrição crítica compatível, como `vegetarian` com `no_gluten` | `no_compatible_products`. Contradição continua na linha de `400`                             |
+| `fish` + `no_seafood`, ou `beef` + `vegan`                      | `400`, sem consultar o cardápio                                                              |
+| nenhum `available: true`                                        | `empty_catalog`                                                                              |
+| preço 2050 ou 3550, faixa limitada                              | fora. Com `unlimited`, a faixa deixa de excluir                                              |
 
 `light` e `full` não aparecem nessa tabela porque não mudam ids nem ordem.
 
@@ -254,7 +254,7 @@ O texto antigo do contrato, “primeiros N disponíveis por categoria popular”
 
 ## Provedor externo
 
-Caminho previsto, não implementado:
+Caminho implementado na SCRUM-62:
 
 ```text
 Flutter → POST /ai/recommendation → seleção na API → Gemini
@@ -262,7 +262,7 @@ Flutter → POST /ai/recommendation → seleção na API → Gemini
 
 A chave fica só no processo da API, em `GEMINI_API_KEY`. Não vai para o Flutter, para o log, para o corpo de erro nem para o repositório. Assinatura de estudante do Gemini não conta como crédito de API. Chave ausente ou em branco é provedor indisponível, não uma tentativa anônima.
 
-Quando a SCRUM-62 chamar o provedor, a chamada leva somente o necessário para escolher ids dentro do conjunto já elegível:
+Quando a chamada sai, ela leva somente o necessário para escolher ids dentro do conjunto já elegível:
 
 - ids e os campos usados na elegibilidade: `name`, `category`, `priceCents`, `ingredients`;
 - as preferências normalizadas;
@@ -270,9 +270,11 @@ Quando a SCRUM-62 chamar o provedor, a chamada leva somente o necessário para e
 
 Não leva `table`, imagem, pedido, carrinho, chave ou cabeçalho de autorização da API. `description` pode ir porque a evidência de proteína também a lê; continua sendo texto de apresentação, não laudo.
 
-Timeout padrão de 8000 ms, com `AbortSignal`. Uma variável futura `GEMINI_TIMEOUT_MS`, inteiro de 1000 a 15000, pode substituir o padrão. Ela não entra em `src/config/env.ts` nesta story. Estouro cancela a chamada e aciona o fallback.
+Timeout padrão de 8000 ms, com `AbortSignal`. `GEMINI_TIMEOUT_MS`, inteiro de 1000 a 15000, é lida em `src/config/env.ts` e substitui o padrão. Estouro cancela a chamada e aciona o fallback.
 
-A resposta do Gemini só é lida como lista de ids. A API:
+`GEMINI_DIAGNOSTICS` fica desligado, salvo `1` ou `true`. Ligado, o log local registra só o estágio da chamada, o status numérico, contagens, `finishReason` categórico e o tempo da chamada externa. Não registra chave, pedido, texto gerado nem ids, e não muda o JSON da rota.
+
+A resposta do Gemini só é lida como lista de ids. Partes com `thought: true` são contadas e ficam fora do texto, para o raciocínio não invalidar o JSON. A API:
 
 - descarta id ausente do snapshot, indisponível ou fora do conjunto elegível;
 - descarta duplicata, mantendo a primeira;
@@ -280,9 +282,20 @@ A resposta do Gemini só é lida como lista de ids. A API:
 - ignora nome, preço e frase produzidos lá;
 - se não sobrar id, executa o fallback no mesmo snapshot.
 
-A chamada deve usar `fetch` do Node. Esta story não adiciona SDK nem dependência. Teste da SCRUM-62 injeta um fake: não há rede, não há chave e o relógio do timeout é controlado.
+A chamada usa `fetch` do Node, modelo `gemini-3.6-flash` e saída estruturada. Não há SDK nem dependência nova. O teste injeta um fake: não há rede, não há chave e o relógio do timeout é controlado.
 
-O módulo futuro fica em `src/modules/recommendations/`, registrado em `buildApp` como produtos e pedidos. A função pura de seleção é o núcleo testável. A rota só valida, lê o snapshot e devolve o JSON do contrato.
+O módulo fica em `src/modules/recommendations/`, registrado em `buildApp` como produtos e pedidos. A função pura de seleção é o núcleo testável. A rota só valida, lê o snapshot e devolve o JSON do contrato.
+
+### O que a SCRUM-62 já cobre da SCRUM-63 e da SCRUM-67
+
+A validação dos ids e o fallback estão no mesmo conjunto elegível, com teste e sem segunda função de filtro:
+
+- id inexistente, indisponível, duplicado ou fora do conjunto é descartado;
+- se sobra um subconjunto, a resposta leva só esse subconjunto, sem completar até `limit`;
+- se não sobra id, o fallback integral devolve a ordem determinística;
+- chave ausente, timeout, falha de rede e JSON inválido também usam esse fallback e respondem `provider: unavailable`.
+
+A faixa visual “A Dinna não respondeu agora” continua na entrega do app. Esta API não grava preferência nem altera pedido, carrinho ou cardápio.
 
 ## Segurança e privacidade
 
