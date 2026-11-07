@@ -16,7 +16,8 @@
 | Recomendação (contrato R2)      | Pagamentos, delivery, estoque  |
 
 - Um restaurante, cardápio e fila pequenos (apresentação acadêmica).
-- Sem auth no MVP: qualquer cliente HTTP pode chamar qualquer rota. A distinção **cliente × restaurante** fica no app Flutter (perfis de UI), não na API.
+- Sem auth de usuário no MVP. A distinção **cliente × restaurante** fica no app Flutter (perfis de UI), não na API.
+- No ambiente hospedado, a API pode exigir um token de acesso compartilhado. Ver [Acesso ao ambiente hospedado](#acesso-ao-ambiente-hospedado). Localmente fica desligado e nada muda para os clientes.
 - JSON em UTF-8; campos em `camelCase`; identificadores como `string`.
 - Valores monetários em **centavos** (`priceCents`, `totalCents`: `number` inteiro ≥ 0).
 - Datas em ISO-8601 UTC (`createdAt`: `"2026-10-16T18:00:00Z"`).
@@ -35,6 +36,7 @@ Todas as respostas de erro usam:
 | HTTP | `code`                      | Quando                                                          |
 | ---- | --------------------------- | --------------------------------------------------------------- |
 | 400  | `VALIDATION_ERROR`          | Body, params, query ou `Idempotency-Key` fora do contrato       |
+| 401  | `UNAUTHORIZED`              | Proteção ligada e `X-Dinna-Api-Token` ausente ou inválido       |
 | 404  | `NOT_FOUND`                 | Rota inexistente **ou** recurso inexistente                     |
 | 409  | `CONFLICT`                  | Transição de status inválida; regra de negócio em conflito      |
 | 409  | `IDEMPOTENCY_KEY_CONFLICT`  | Mesma `Idempotency-Key` com payload diferente em `POST /orders` |
@@ -208,7 +210,7 @@ Qualquer outro salto ou regressão → `409 INVALID_STATUS_TRANSITION`.
 
 ### `GET /health`
 
-Verificação de disponibilidade. Sem auth, sem query.
+Verificação de disponibilidade. Sem query. Sempre público, mesmo com a proteção por token ligada.
 
 ```http
 GET /health
@@ -572,11 +574,29 @@ Não há `404` de produto nesta rota: id desconhecido do provedor é descartado,
 1. Contrato em Markdown versionado (sem OpenAPI nesta entrega).
 2. Soft-delete em `DELETE /products/:id` (`available: false`).
 3. Sem paginação em listagens no R1.
-4. Sem autenticação no MVP; documentado explicitamente.
+4. Sem autenticação de usuário no MVP. O ambiente hospedado pode exigir um token compartilhado ([Acesso ao ambiente hospedado](#acesso-ao-ambiente-hospedado)).
 5. Transições de status só em um passo; salto inválido → `409 INVALID_STATUS_TRANSITION`.
 6. `POST /orders` rejeita produtos inexistentes ou indisponíveis com `PRODUCT_NOT_FOUND`.
 7. `totalCents` calculado no servidor na criação; não é enviado pelo cliente.
 8. `ingredients` é `string[]` ordenado. Omissão na criação grava `[]`. Omissão no `PUT` preserva a lista. `[]` explícito limpa. `description` não é fonte dessa lista.
+
+## Acesso ao ambiente hospedado
+
+Controlado por `DINNA_REQUIRE_API_TOKEN` e `DINNA_API_TOKEN` (ver `docs/deploy.md`). Desligado por padrão.
+
+Com a proteção ligada:
+
+- toda rota, exceto `GET /health` (e o `HEAD` automático), exige o header `X-Dinna-Api-Token` com o token configurado no servidor;
+- vale também para rotas inexistentes: sem token a resposta é 401, não 404;
+- header ausente, vazio ou diferente responde **401**, sempre com o mesmo corpo, antes de ler o body. Nada é gravado:
+
+```json
+{ "error": { "code": "UNAUTHORIZED", "message": "Token de acesso ausente ou inválido" } }
+```
+
+- com o token correto, payloads, status e códigos de erro das rotas não mudam.
+
+O token é uma barreira de acesso compartilhada pela equipe para a apresentação acadêmica. Não identifica usuário nem substitui autenticação.
 
 ## Idempotência de `POST /orders` (SCRUM-89)
 

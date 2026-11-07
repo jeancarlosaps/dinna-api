@@ -82,7 +82,8 @@ Fundação (R0) **em andamento**. Health, SQLite, seed de cardápio e CRUD de `/
 | `GET /orders/:id`                                                                     | ✅ Implementado e testado                      |
 | `PATCH /orders/:id/status`                                                            | ✅ Implementado e testado (SCRUM-53)           |
 | `/ai/recommendation`                                                                  | ✅ Implementado (SCRUM-62)                     |
-| Autenticação                                                                          | ⬜ Fora do escopo atual                        |
+| Token de acesso compartilhado para o ambiente hospedado                               | ✅ Implementado e testado (opcional)           |
+| Autenticação de usuário                                                               | ⬜ Fora do escopo atual                        |
 
 ---
 
@@ -215,17 +216,19 @@ cp .env.example .env
 
 ### Configuração de ambiente
 
-| Variável             | Padrão              | Descrição                                                                            |
-| -------------------- | ------------------- | ------------------------------------------------------------------------------------ |
-| `HOST`               | `0.0.0.0`           | Interface de escuta. `0.0.0.0` permite o acesso de emuladores e dispositivos na rede |
-| `PORT`               | `3333`              | Porta HTTP (1–65535)                                                                 |
-| `LOG_LEVEL`          | `info`              | `fatal`, `error`, `warn`, `info`, `debug`, `trace` ou `silent`                       |
-| `DATABASE_PATH`      | `data/dinna.sqlite` | Arquivo SQLite. Testes usam `:memory:` via `buildApp()`                              |
-| `GEMINI_API_KEY`     | ausente             | Opcional. Sem chave, a recomendação usa o fallback e não chama a rede                |
-| `GEMINI_TIMEOUT_MS`  | `8000`              | Opcional. Inteiro de 1000 a 15000. Tempo limite da chamada ao Gemini                 |
-| `GEMINI_DIAGNOSTICS` | desligado           | Opcional. Só `1` ou `true`. Loga o estágio da chamada, sem chave, texto nem ids      |
+| Variável                  | Padrão              | Descrição                                                                            |
+| ------------------------- | ------------------- | ------------------------------------------------------------------------------------ |
+| `HOST`                    | `0.0.0.0`           | Interface de escuta. `0.0.0.0` permite o acesso de emuladores e dispositivos na rede |
+| `PORT`                    | `3333`              | Porta HTTP (1–65535)                                                                 |
+| `LOG_LEVEL`               | `info`              | `fatal`, `error`, `warn`, `info`, `debug`, `trace` ou `silent`                       |
+| `DATABASE_PATH`           | `data/dinna.sqlite` | Arquivo SQLite. Testes usam `:memory:` via `buildApp()`                              |
+| `GEMINI_API_KEY`          | ausente             | Opcional. Sem chave, a recomendação usa o fallback e não chama a rede                |
+| `GEMINI_TIMEOUT_MS`       | `8000`              | Opcional. Inteiro de 1000 a 15000. Tempo limite da chamada ao Gemini                 |
+| `GEMINI_DIAGNOSTICS`      | desligado           | Opcional. Só `1` ou `true`. Loga o estágio da chamada, sem chave, texto nem ids      |
+| `DINNA_REQUIRE_API_TOKEN` | desligado           | `true` ou `1` exige `X-Dinna-Api-Token` em todas as rotas, menos `GET /health`       |
+| `DINNA_API_TOKEN`         | ausente             | Token da proteção. Só com `DINNA_REQUIRE_API_TOKEN=true`. Mínimo 32 caracteres       |
 
-Valores inválidos de `HOST`, `PORT`, `LOG_LEVEL`, `DATABASE_PATH` e `GEMINI_TIMEOUT_MS` fazem a API falhar ao iniciar, com mensagem explícita. `GEMINI_API_KEY` ausente ou em branco não impede a subida: a recomendação usa o fallback. O `.env` **nunca** é versionado; só o `.env.example`.
+Valores inválidos de `HOST`, `PORT`, `LOG_LEVEL`, `DATABASE_PATH` e `GEMINI_TIMEOUT_MS` fazem a API falhar ao iniciar, com mensagem explícita. O mesmo vale para a proteção por token: ligada sem token válido, ou token definido sem ligar a proteção. Localmente não defina nenhuma das duas; a API fica aberta como antes. O uso no ambiente hospedado está em [`docs/deploy.md`](docs/deploy.md#proteção-por-token). `GEMINI_API_KEY` ausente ou em branco não impede a subida: a recomendação usa o fallback. O `.env` **nunca** é versionado; só o `.env.example`.
 
 ### Execução local
 
@@ -371,6 +374,7 @@ Todas as respostas de erro usam o mesmo formato:
 | HTTP | `code`                 | Quando                                                         |
 | ---- | ---------------------- | -------------------------------------------------------------- |
 | 400  | `VALIDATION_ERROR`     | Body, params ou query fora do schema (`details` traz os erros) |
+| 401  | `UNAUTHORIZED`         | Proteção por token ligada e header ausente ou inválido         |
 | 404  | `NOT_FOUND`            | Rota inexistente                                               |
 | 4xx  | definido no `AppError` | Regra de negócio (ex.: 409 em conflito)                        |
 | 500  | `INTERNAL_ERROR`       | Erro inesperado; o detalhe vai só para o log                   |
