@@ -195,18 +195,18 @@ Não há lista de tokens para declarar glúten, lactose, vegano ou fruto do mar 
 
 Valores com `style` indiferente. `restrictions` vazio, salvo quando a linha diz o contrário. Catálogo = `p1`–`p12` do seed, com `p8` indisponível e bebidas de fora.
 
-| Preferências                                                        | Resultado esperado no fallback, `limit` 3                                                    |
-| ------------------------------------------------------------------- | -------------------------------------------------------------------------------------------- |
-| `up_to_20`, `normal`, `vegetarian`, `savory`, sem restrição         | só `p3`. Motivo: `Vegetariano, Até R$ 20, Salgado`                                           |
-| `from_36_to_60`, `big`, `beef`, `savory`, `no_onion`                | só `p2`. `p9` tem cebola. Motivo: `Carne, R$ 36–60, Salgado, sem cebola na lista cadastrada` |
-| `unlimited`, `little`, `beef`, `savory`, sem restrição              | `p1`, `p2`, `p9` (preço 3290, 3890, 4290)                                                    |
-| `unlimited`, `big`, `beef`, `savory`, sem restrição                 | `p9`, `p2`, `p1`                                                                             |
-| `unlimited`, `little`, `chicken`, `savory`                          | `no_compatible_products`. O seed não tem token de frango                                     |
-| `unlimited`, `normal`, `fish`, `savory`                             | `no_compatible_products`. O seed não tem token de peixe                                      |
-| qualquer uma com `no_gluten`, `no_lactose`, `vegan` ou `no_seafood` | `no_compatible_products`                                                                     |
-| `fish` + `no_seafood`, ou `beef` + `vegan`                          | `400`, sem consultar o cardápio                                                              |
-| nenhum `available: true`                                            | `empty_catalog`                                                                              |
-| preço 2050 ou 3550, faixa limitada                                  | fora. Com `unlimited`, a faixa deixa de excluir                                              |
+| Preferências                                                    | Resultado esperado no fallback, `limit` 3                                                    |
+| --------------------------------------------------------------- | -------------------------------------------------------------------------------------------- |
+| `up_to_20`, `normal`, `vegetarian`, `savory`, sem restrição     | só `p3`. Motivo: `Vegetariano, Até R$ 20, Salgado`                                           |
+| `from_36_to_60`, `big`, `beef`, `savory`, `no_onion`            | só `p2`. `p9` tem cebola. Motivo: `Carne, R$ 36–60, Salgado, sem cebola na lista cadastrada` |
+| `unlimited`, `little`, `beef`, `savory`, sem restrição          | `p1`, `p2`, `p9` (preço 3290, 3890, 4290)                                                    |
+| `unlimited`, `big`, `beef`, `savory`, sem restrição             | `p9`, `p2`, `p1`                                                                             |
+| `unlimited`, `little`, `chicken`, `savory`                      | `no_compatible_products`. O seed não tem token de frango                                     |
+| `unlimited`, `normal`, `fish`, `savory`                         | `no_compatible_products`. O seed não tem token de peixe                                      |
+| restrição crítica compatível, como `vegetarian` com `no_gluten` | `no_compatible_products`. Contradição continua na linha de `400`                             |
+| `fish` + `no_seafood`, ou `beef` + `vegan`                      | `400`, sem consultar o cardápio                                                              |
+| nenhum `available: true`                                        | `empty_catalog`                                                                              |
+| preço 2050 ou 3550, faixa limitada                              | fora. Com `unlimited`, a faixa deixa de excluir                                              |
 
 `light` e `full` não aparecem nessa tabela porque não mudam ids nem ordem.
 
@@ -271,6 +271,8 @@ Quando a chamada sai, ela leva somente o necessário para escolher ids dentro do
 Não leva `table`, imagem, pedido, carrinho, chave ou cabeçalho de autorização da API. `description` pode ir porque a evidência de proteína também a lê; continua sendo texto de apresentação, não laudo.
 
 Timeout padrão de 8000 ms, com `AbortSignal`. `GEMINI_TIMEOUT_MS`, inteiro de 1000 a 15000, é lida em `src/config/env.ts` e substitui o padrão. Estouro cancela a chamada e aciona o fallback.
+
+`GEMINI_DIAGNOSTICS` fica desligado, salvo `1` ou `true`. Ligado, o log local registra só o estágio da chamada, o status numérico, contagens, `finishReason` categórico e o tempo da chamada externa. Não registra chave, pedido, texto gerado nem ids, e não muda o JSON da rota.
 
 A resposta do Gemini só é lida como lista de ids. A API:
 

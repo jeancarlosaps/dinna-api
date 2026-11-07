@@ -15,6 +15,8 @@ export interface Env {
   geminiApiKey: string | undefined;
   /** Tempo limite da chamada, em milissegundos. Padrão 8000. Intervalo 1000–15000. */
   geminiTimeoutMs: number;
+  /** Log local do estágio da chamada. Desligado, salvo `1` ou `true`. */
+  geminiDiagnostics: boolean;
 }
 
 export function loadEnv(source: NodeJS.ProcessEnv = process.env): Env {
@@ -40,7 +42,16 @@ export function loadEnv(source: NodeJS.ProcessEnv = process.env): Env {
     databasePath,
     geminiApiKey: readGeminiApiKey(source.GEMINI_API_KEY),
     geminiTimeoutMs: readGeminiTimeoutMs(source.GEMINI_TIMEOUT_MS),
+    geminiDiagnostics: readGeminiDiagnostics(source.GEMINI_DIAGNOSTICS),
   };
+}
+
+function readGeminiDiagnostics(value: string | undefined): boolean {
+  if (value === undefined) {
+    return false;
+  }
+  const normalized = value.trim().toLowerCase();
+  return normalized === '1' || normalized === 'true';
 }
 
 function readGeminiApiKey(value: string | undefined): string | undefined {

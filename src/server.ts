@@ -8,6 +8,7 @@ const app = buildApp({
   recommendation: {
     apiKey: env.geminiApiKey,
     timeoutMs: env.geminiTimeoutMs,
+    diagnostics: env.geminiDiagnostics,
   },
 });
 

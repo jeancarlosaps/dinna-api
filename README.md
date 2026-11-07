@@ -215,14 +215,15 @@ cp .env.example .env
 
 ### Configuração de ambiente
 
-| Variável            | Padrão              | Descrição                                                                            |
-| ------------------- | ------------------- | ------------------------------------------------------------------------------------ |
-| `HOST`              | `0.0.0.0`           | Interface de escuta. `0.0.0.0` permite o acesso de emuladores e dispositivos na rede |
-| `PORT`              | `3333`              | Porta HTTP (1–65535)                                                                 |
-| `LOG_LEVEL`         | `info`              | `fatal`, `error`, `warn`, `info`, `debug`, `trace` ou `silent`                       |
-| `DATABASE_PATH`     | `data/dinna.sqlite` | Arquivo SQLite. Testes usam `:memory:` via `buildApp()`                              |
-| `GEMINI_API_KEY`    | ausente             | Opcional. Sem chave, a recomendação usa o fallback e não chama a rede                |
-| `GEMINI_TIMEOUT_MS` | `8000`              | Opcional. Inteiro de 1000 a 15000. Tempo limite da chamada ao Gemini                 |
+| Variável             | Padrão              | Descrição                                                                            |
+| -------------------- | ------------------- | ------------------------------------------------------------------------------------ |
+| `HOST`               | `0.0.0.0`           | Interface de escuta. `0.0.0.0` permite o acesso de emuladores e dispositivos na rede |
+| `PORT`               | `3333`              | Porta HTTP (1–65535)                                                                 |
+| `LOG_LEVEL`          | `info`              | `fatal`, `error`, `warn`, `info`, `debug`, `trace` ou `silent`                       |
+| `DATABASE_PATH`      | `data/dinna.sqlite` | Arquivo SQLite. Testes usam `:memory:` via `buildApp()`                              |
+| `GEMINI_API_KEY`     | ausente             | Opcional. Sem chave, a recomendação usa o fallback e não chama a rede                |
+| `GEMINI_TIMEOUT_MS`  | `8000`              | Opcional. Inteiro de 1000 a 15000. Tempo limite da chamada ao Gemini                 |
+| `GEMINI_DIAGNOSTICS` | desligado           | Opcional. Só `1` ou `true`. Loga o estágio da chamada, sem chave, texto nem ids      |
 
 Valores inválidos de `HOST`, `PORT`, `LOG_LEVEL`, `DATABASE_PATH` e `GEMINI_TIMEOUT_MS` fazem a API falhar ao iniciar, com mensagem explícita. `GEMINI_API_KEY` ausente ou em branco não impede a subida: a recomendação usa o fallback. O `.env` **nunca** é versionado; só o `.env.example`.
 
@@ -325,8 +326,11 @@ Os quatro resultados **200** possíveis:
 | -------------------------------------------------------------------------------------------------------------- | ------------- | ------------------------ |
 | Sem chave, body do exemplo, seed intacto                                                                       | `unavailable` | `suggestions`            |
 | Com chave e ao menos um id aceito do modelo. O teste `aceita ids do modelo` cobre o formato sem rede           | `answered`    | `suggestions`            |
-| `protein: chicken` no seed, ou qualquer restrição crítica (`no_gluten`, `no_lactose`, `vegan`, `no_seafood`)   | `not_called`  | `no_compatible_products` |
+| `protein: chicken` ou `fish` no seed                                                                           | `not_called`  | `no_compatible_products` |
+| Restrição crítica compatível com a proteína, como `vegetarian` com `no_gluten`                                 | `not_called`  | `no_compatible_products` |
 | Nenhum produto `available: true`. `DELETE /products/:id` faz soft-delete; `PUT` com `available: true` restaura | `not_called`  | `empty_catalog`          |
+
+`no_lactose`, `vegan` e `no_seafood` seguem o mesmo 200 quando a proteína não os contradiz. `vegetarian` com `vegan` é válido e também esvazia o conjunto. `fish` com `no_seafood`, e `beef`, `chicken` ou `fish` com `vegan`, não são esse 200: respondem HTTP 400 com `VALIDATION_ERROR` antes do cardápio e do provedor.
 
 A lista de ingredientes é informativa. A API não afirma ausência de alergênico nem preparo livre de contaminação cruzada. `no_onion` só tira o que cita cebola e o que não tem lista cadastrada; o motivo diz “sem cebola na lista cadastrada”, não que o preparo esteja livre de cebola. Sem atributo alimentar confiável, restrição crítica não gera sugestão. A pessoa confirma com a equipe: “Tem alergia? Confirme os ingredientes com a equipe antes de pedir.”
 

@@ -10,6 +10,7 @@ describe('loadEnv', () => {
       databasePath: 'data/dinna.sqlite',
       geminiApiKey: undefined,
       geminiTimeoutMs: 8000,
+      geminiDiagnostics: false,
     });
   });
 
@@ -38,5 +39,14 @@ describe('loadEnv', () => {
     expect(() => loadEnv({ GEMINI_TIMEOUT_MS: '999' })).toThrow(/GEMINI_TIMEOUT_MS/);
     expect(() => loadEnv({ GEMINI_TIMEOUT_MS: '15001' })).toThrow(/GEMINI_TIMEOUT_MS/);
     expect(() => loadEnv({ GEMINI_TIMEOUT_MS: '8.5' })).toThrow(/GEMINI_TIMEOUT_MS/);
+  });
+
+  it('só liga o diagnóstico com 1 ou true', () => {
+    expect(loadEnv({}).geminiDiagnostics).toBe(false);
+    expect(loadEnv({ GEMINI_DIAGNOSTICS: '  ' }).geminiDiagnostics).toBe(false);
+    expect(loadEnv({ GEMINI_DIAGNOSTICS: '0' }).geminiDiagnostics).toBe(false);
+    expect(loadEnv({ GEMINI_DIAGNOSTICS: 'yes' }).geminiDiagnostics).toBe(false);
+    expect(loadEnv({ GEMINI_DIAGNOSTICS: '1' }).geminiDiagnostics).toBe(true);
+    expect(loadEnv({ GEMINI_DIAGNOSTICS: ' TRUE ' }).geminiDiagnostics).toBe(true);
   });
 });

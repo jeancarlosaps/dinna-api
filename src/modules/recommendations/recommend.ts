@@ -36,6 +36,12 @@ export interface RecommendInput {
   limit: number;
   provider?: RecommendationProvider;
   onProviderFallback?: (reason: ProviderFallbackReason) => void;
+  /** Contagens depois da elegibilidade. Sem ids e sem texto do modelo. */
+  onDiagnostic?: (event: {
+    stage: 'ok' | 'ids_rejeitados';
+    receivedCount: number;
+    acceptedCount: number;
+  }) => void;
 }
 
 /**
@@ -76,6 +82,11 @@ export async function recommend(input: RecommendInput): Promise<RecommendationRe
   }
 
   const accepted = acceptProviderIds(ids, eligible, input.limit);
+  input.onDiagnostic?.({
+    stage: accepted.length === 0 ? 'ids_rejeitados' : 'ok',
+    receivedCount: ids.length,
+    acceptedCount: accepted.length,
+  });
   if (accepted.length === 0) {
     input.onProviderFallback?.('no_usable_ids');
     return suggestions('unavailable', fallbackProducts, input.preferences);

@@ -1,6 +1,7 @@
 import { mkdtempSync, rmSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
+import { Writable } from 'node:stream';
 import { DatabaseSync } from 'node:sqlite';
 import { afterEach, describe, expect, it } from 'vitest';
 import type { FastifyInstance } from 'fastify';
@@ -445,6 +446,74 @@ describe('POST /ai/recommendation', () => {
     expect(after.keys).toBe(1);
     expect(after.products).toBe(before.products);
     expect(after.rows).toEqual(before.rows);
+  });
+
+  it('com diagnóstico, conta ids rejeitados e não grava texto, chave nem id', async () => {
+    const lines: string[] = [];
+    const stream = new Writable({
+      write(chunk, _encoding, callback) {
+        lines.push(String(chunk));
+        callback();
+      },
+    });
+    const hiddenId = 'id-oculto-no-log';
+    app = buildApp({
+      logger: { level: 'warn', stream },
+      recommendation: {
+        apiKey: 'chave-oculta',
+        diagnostics: true,
+        fetchImpl: async () =>
+          new Response(
+            JSON.stringify({
+              candidates: [
+                {
+                  finishReason: 'STOP',
+                  content: {
+                    parts: [
+                      { thought: true },
+                      { text: JSON.stringify({ productIds: [hiddenId] }) },
+                    ],
+                  },
+                },
+              ],
+            }),
+            { status: 200, headers: { 'content-type': 'application/json' } },
+          ),
+      },
+    });
+
+    const response = await post(app, EXAMPLE);
+    expect(response.statusCode).toBe(200);
+    expect(response.json()).toMatchObject({ provider: 'unavailable', outcome: 'suggestions' });
+
+    const logged = lines.join('\n');
+    expect(logged).not.toContain('chave-oculta');
+    expect(logged).not.toContain(hiddenId);
+    const diagnostics = lines
+      .map(
+        (line) =>
+          JSON.parse(line) as {
+            gemini?: {
+              stage?: string;
+              receivedCount?: number;
+              acceptedCount?: number;
+              thoughtParts?: number;
+            };
+          },
+      )
+      .map((entry) => entry.gemini)
+      .filter((entry) => entry !== undefined);
+    expect(diagnostics).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          stage: 'ids_lidos',
+          receivedCount: 1,
+          thoughtParts: 1,
+          finishReason: 'STOP',
+        }),
+        expect.objectContaining({ stage: 'ids_rejeitados', receivedCount: 1, acceptedCount: 0 }),
+      ]),
+    );
   });
 });
 

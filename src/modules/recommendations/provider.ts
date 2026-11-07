@@ -45,6 +45,47 @@ export interface GeminiProviderOptions {
   apiKey: string;
   timeoutMs?: number;
   fetchImpl?: typeof fetch;
+  /** Loga só o estágio da chamada. Não muda o fallback nem a resposta HTTP. */
+  diagnostics?: boolean;
+  onDiagnostic?: (event: GeminiDiagnostic) => void;
+}
+
+/** Estágio observado. Não carrega texto, ids nem credenciais. */
+export type GeminiDiagnosticStage =
+  | 'timeout'
+  | 'network'
+  | 'http_status'
+  | 'json_invalido'
+  | 'sem_candidates'
+  | 'sem_parts'
+  | 'sem_texto'
+  | 'json_parse'
+  | 'product_ids_invalidos'
+  | 'ids_lidos'
+  | 'ids_rejeitados'
+  | 'ok';
+
+export interface GeminiDiagnostic {
+  stage: GeminiDiagnosticStage;
+  geminiMs: number | null;
+  httpStatus: number | null;
+  parts: number | null;
+  thoughtParts: number | null;
+  finishReason: string | null;
+  receivedCount: number | null;
+  acceptedCount: number | null;
+}
+
+interface PayloadInspection {
+  stage: Exclude<
+    GeminiDiagnosticStage,
+    'timeout' | 'network' | 'http_status' | 'json_invalido' | 'ids_rejeitados' | 'ok'
+  >;
+  parts: number | null;
+  thoughtParts: number | null;
+  finishReason: string | null;
+  receivedCount: number | null;
+  ids: string[] | undefined;
 }
 
 /**
@@ -103,33 +144,69 @@ function isTimeoutError(error: unknown): boolean {
 
 /** Lê só `productIds`. Nome, preço e frase do modelo não são usados. */
 export function readProductIds(payload: unknown): string[] | undefined {
-  if (!isRecord(payload) || !Array.isArray(payload.candidates)) {
-    return undefined;
+  return inspectGeminiPayload(payload).ids;
+}
+
+/**
+ * Classifica o envelope na mesma ordem em que `readProductIds` o consome.
+ * O objeto devolvido não guarda texto nem ids.
+ */
+export function inspectGeminiPayload(payload: unknown): PayloadInspection {
+  const empty: PayloadInspection = {
+    stage: 'sem_candidates',
+    parts: null,
+    thoughtParts: null,
+    finishReason: null,
+    receivedCount: null,
+    ids: undefined,
+  };
+  if (!isRecord(payload) || !Array.isArray(payload.candidates) || payload.candidates.length === 0) {
+    return empty;
   }
 
   const first: unknown = payload.candidates[0];
   if (!isRecord(first) || !isRecord(first.content) || !Array.isArray(first.content.parts)) {
-    return undefined;
+    return {
+      ...empty,
+      stage: 'sem_parts',
+      finishReason: categoricalFinishReason(isRecord(first) ? first.finishReason : undefined),
+    };
   }
 
+  const parts = first.content.parts;
+  let thoughtParts = 0;
   let text = '';
-  for (const part of first.content.parts) {
-    if (isRecord(part) && typeof part.text === 'string') {
+  for (const part of parts) {
+    if (!isRecord(part)) {
+      continue;
+    }
+    if (part.thought === true) {
+      thoughtParts += 1;
+    }
+    if (typeof part.text === 'string') {
       text += part.text;
     }
   }
+
+  const shape = {
+    parts: parts.length,
+    thoughtParts,
+    finishReason: categoricalFinishReason(first.finishReason),
+    receivedCount: null,
+    ids: undefined,
+  };
   if (text.trim() === '') {
-    return undefined;
+    return { stage: 'sem_texto', ...shape };
   }
 
   let parsed: unknown;
   try {
     parsed = JSON.parse(text) as unknown;
   } catch {
-    return undefined;
+    return { stage: 'json_parse', ...shape };
   }
   if (!isRecord(parsed) || !Array.isArray(parsed.productIds)) {
-    return undefined;
+    return { stage: 'product_ids_invalidos', ...shape };
   }
 
   const ids: string[] = [];
@@ -139,7 +216,20 @@ export function readProductIds(payload: unknown): string[] | undefined {
     }
     ids.push(id);
   }
-  return ids;
+  if (ids.length === 0 && parsed.productIds.length > 0) {
+    return { stage: 'product_ids_invalidos', ...shape, receivedCount: 0 };
+  }
+  return { stage: 'ids_lidos', ...shape, receivedCount: ids.length, ids };
+}
+
+function categoricalFinishReason(value: unknown): string | null {
+  if (typeof value !== 'string' || value.trim() === '') {
+    return null;
+  }
+  if (/^[A-Z0-9_]{1,40}$/.test(value)) {
+    return value;
+  }
+  return 'outro';
 }
 
 export function buildGeminiRequestBody(input: ProviderRequest): {
@@ -205,6 +295,7 @@ export function createGeminiProvider(options: GeminiProviderOptions): Recommenda
 
   return async (input) => {
     const body = buildGeminiRequestBody(input);
+    const started = Date.now();
     let response: Response;
     try {
       response = await fetchImpl(GEMINI_ENDPOINT, {
@@ -217,14 +308,22 @@ export function createGeminiProvider(options: GeminiProviderOptions): Recommenda
         signal: AbortSignal.timeout(timeoutMs),
       });
     } catch (error) {
+      const geminiMs = Date.now() - started;
       if (isTimeoutError(error)) {
+        emitDiagnostic(options, blankDiagnostic('timeout', geminiMs));
         throw new ProviderUnavailable('timeout');
       }
+      emitDiagnostic(options, blankDiagnostic('network', geminiMs));
       throw new ProviderUnavailable('network');
     }
 
+    const geminiMs = Date.now() - started;
     if (!response.ok) {
       await response.body?.cancel().catch(() => undefined);
+      emitDiagnostic(options, {
+        ...blankDiagnostic('http_status', geminiMs),
+        httpStatus: response.status,
+      });
       throw new ProviderUnavailable('invalid_response');
     }
 
@@ -232,13 +331,56 @@ export function createGeminiProvider(options: GeminiProviderOptions): Recommenda
     try {
       payload = (await response.json()) as unknown;
     } catch {
+      emitDiagnostic(options, {
+        ...blankDiagnostic('json_invalido', geminiMs),
+        httpStatus: response.status,
+      });
       throw new ProviderUnavailable('invalid_response');
     }
 
-    const ids = readProductIds(payload);
-    if (!ids) {
+    const inspection = inspectGeminiPayload(payload);
+    emitDiagnostic(options, {
+      stage: inspection.stage,
+      geminiMs,
+      httpStatus: response.status,
+      parts: inspection.parts,
+      thoughtParts: inspection.thoughtParts,
+      finishReason: inspection.finishReason,
+      receivedCount: inspection.receivedCount,
+      acceptedCount: null,
+    });
+    if (!inspection.ids) {
       throw new ProviderUnavailable('invalid_response');
     }
-    return ids;
+    return inspection.ids;
   };
+}
+
+function blankDiagnostic(stage: GeminiDiagnosticStage, geminiMs: number): GeminiDiagnostic {
+  return {
+    stage,
+    geminiMs,
+    httpStatus: null,
+    parts: null,
+    thoughtParts: null,
+    finishReason: null,
+    receivedCount: null,
+    acceptedCount: null,
+  };
+}
+
+function emitDiagnostic(options: GeminiProviderOptions, event: GeminiDiagnostic): void {
+  if (options.diagnostics !== true) {
+    return;
+  }
+  options.onDiagnostic?.({
+    stage: event.stage,
+    geminiMs: event.geminiMs,
+    httpStatus: event.httpStatus,
+    parts: event.parts,
+    thoughtParts: event.thoughtParts,
+    finishReason: event.finishReason,
+    receivedCount: event.receivedCount,
+    acceptedCount: event.acceptedCount,
+  });
 }

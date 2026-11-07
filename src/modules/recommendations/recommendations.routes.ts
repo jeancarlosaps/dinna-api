@@ -108,6 +108,7 @@ const recommendationResponseSchema = {
 export function recommendationsRoutes(
   db: Db,
   provider?: RecommendationProvider,
+  options?: { diagnostics?: boolean },
 ): FastifyPluginAsync {
   return async function registerRecommendations(app: FastifyInstance): Promise<void> {
     app.post<{ Body: RecommendationRequestBody }>(
@@ -172,6 +173,11 @@ export function recommendationsRoutes(
           onProviderFallback: (reason) => {
             request.log.warn({ reason }, 'Provedor de recomendação indisponível');
           },
+          onDiagnostic: options?.diagnostics
+            ? (event) => {
+                request.log.warn({ gemini: event }, 'Diagnóstico do provedor de recomendação');
+              }
+            : undefined,
         });
       },
     );
