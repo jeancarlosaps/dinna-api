@@ -92,13 +92,33 @@ Restaurar um backup antigo traz de volta pedidos já atendidos e chaves de idemp
 
 ### Cópia avulsa do banco
 
-Não copie `dinna.sqlite` com `cp` enquanto a API está rodando. Para uma cópia consistente com o serviço no ar, use `VACUUM INTO` pelo shell do serviço (`railway ssh`):
+Não copie `dinna.sqlite` com `cp` enquanto a API está rodando. Use `VACUUM INTO`, que gera uma cópia consistente com o serviço no ar.
+
+Pré-requisitos: [Railway CLI](https://docs.railway.com/cli) instalada, `railway login`, `railway link` no serviço da API e uma chave SSH registrada (a CLI pede no primeiro `railway ssh`).
+
+**1. Gerar a cópia no volume.** Cada execução cria um arquivo novo em `/data/backups`, com data e hora no nome, e imprime o caminho. `VACUUM INTO` recusa destino já existente, por isso o nome não pode ser fixo.
 
 ```bash
-node -e "const{DatabaseSync}=require('node:sqlite');const d=new DatabaseSync('/data/dinna.sqlite');d.exec(\"VACUUM INTO '/data/dinna-backup.sqlite'\");d.close()"
+railway ssh -- node -e "const{DatabaseSync}=require('node:sqlite');const fs=require('node:fs');fs.mkdirSync('/data/backups',{recursive:true});const out='/data/backups/dinna-'+new Date().toISOString().replace(/[:.]/g,'-')+'.sqlite';const d=new DatabaseSync('/data/dinna.sqlite');d.exec(\"VACUUM INTO '\"+out+\"'\");d.close();console.log(out)"
 ```
 
-O arquivo gerado fica no volume. Ele é um banco completo e passa em `PRAGMA integrity_check`.
+**2. Exportar para fora do Railway.** Uma cópia que fica em `/data` não protege nada: ela some junto com o volume. Baixe o arquivo para a sua máquina usando o caminho impresso no passo 1:
+
+```bash
+railway volume files download /data/backups/dinna-<data-hora>.sqlite ./dinna-<data-hora>.sqlite
+```
+
+O download usa SFTP pela própria CLI e só funciona com o serviço em execução (deployment ativo). O caminho pode ser absoluto (`/data/...`) ou relativo ao volume (`/backups/...`). Se o arquivo local já existir, o comando falha, a não ser que receba `--overwrite`.
+
+**3. Conferir a cópia local:**
+
+```bash
+node -e "const{DatabaseSync}=require('node:sqlite');const d=new DatabaseSync(process.argv[1],{readOnly:true});console.log(d.prepare('PRAGMA integrity_check').get(),d.prepare('SELECT COUNT(*) AS orders FROM orders').get())" ./dinna-<data-hora>.sqlite
+```
+
+O resultado esperado é `integrity_check: 'ok'` e a contagem de pedidos. Guarde o arquivo fora do repositório: `*.sqlite` está no `.gitignore` e não pode ser versionado.
+
+As cópias em `/data/backups` ocupam o volume. Depois de exportar, apague as antigas com `railway volume files delete /data/backups/<arquivo> --yes`.
 
 ## Segurança
 
@@ -133,8 +153,10 @@ Sem barra no final. Com HTTPS não é preciso liberar tráfego em texto claro no
 
 ## Desligar
 
+Antes de remover o deployment ou excluir o projeto, **exporte o banco** com os passos 1 a 3 de [Cópia avulsa do banco](#cópia-avulsa-do-banco) e confira a cópia local. A ordem importa: o download exige deployment ativo, e os backups do Railway são apagados junto com o volume.
+
 - **Pausar cobrança de CPU/RAM:** remover o deployment ativo do serviço. O volume continua cobrado por GB.
-- **Encerrar tudo:** **Settings → Danger → Delete project**. Apaga serviço, volume e backups. Faça uma cópia antes se quiser guardar os dados.
+- **Encerrar tudo:** só depois da exportação conferida, **Settings → Danger → Delete project**. Apaga serviço, volume e backups do Railway.
 
 ## Evolução
 
