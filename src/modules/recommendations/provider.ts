@@ -182,6 +182,7 @@ export function inspectGeminiPayload(payload: unknown): PayloadInspection {
     }
     if (part.thought === true) {
       thoughtParts += 1;
+      continue;
     }
     if (typeof part.text === 'string') {
       text += part.text;

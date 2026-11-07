@@ -173,10 +173,8 @@ describe('provedor Gemini', () => {
         body: {
           candidates: [
             {
-              finishReason: 'o modelo escreveu uma frase',
-              content: {
-                parts: [{ thought: true, text: secret }, { text: '{"productIds":["p2"]}' }],
-              },
+              finishReason: 'STOP',
+              content: { parts: [{ text: 'nao-json' }] },
             },
           ],
         },
@@ -217,9 +215,9 @@ describe('provedor Gemini', () => {
       if (item.stage === 'json_parse') {
         expect(events[0], `caso ${index}`).toMatchObject({
           httpStatus: 200,
-          parts: 2,
-          thoughtParts: 1,
-          finishReason: 'outro',
+          parts: 1,
+          thoughtParts: 0,
+          finishReason: 'STOP',
         });
       }
       if (item.stage === 'sem_texto') {
@@ -239,7 +237,7 @@ describe('provedor Gemini', () => {
         { finishReason: 'MAX_TOKENS', content: { parts: [{ thought: true, text: secret }] } },
       ],
     });
-    expect(thoughtOnly.stage).toBe('json_parse');
+    expect(thoughtOnly.stage).toBe('sem_texto');
     expect(thoughtOnly.parts).toBe(1);
     expect(thoughtOnly.thoughtParts).toBe(1);
     expect(thoughtOnly.finishReason).toBe('MAX_TOKENS');
@@ -258,6 +256,7 @@ describe('provedor Gemini', () => {
   });
 
   it('conta partes de pensamento e ids lidos sem devolver o texto no diagnóstico', async () => {
+    const secret = 'texto-gerado-nao-logar';
     const events: GeminiDiagnostic[] = [];
     const provider = createGeminiProvider({
       apiKey: 'secret-key',
@@ -271,7 +270,10 @@ describe('provedor Gemini', () => {
             {
               finishReason: 'STOP',
               content: {
-                parts: [{ thought: true }, { text: JSON.stringify({ productIds: ['p2'] }) }],
+                parts: [
+                  { thought: true, text: secret },
+                  { text: JSON.stringify({ productIds: ['p2'] }) },
+                ],
               },
             },
           ],
@@ -290,6 +292,7 @@ describe('provedor Gemini', () => {
         acceptedCount: null,
       }),
     ]);
+    expect(JSON.stringify(events[0])).not.toContain(secret);
     expect(JSON.stringify(events[0])).not.toContain('p2');
     expect(typeof events[0]?.geminiMs).toBe('number');
   });

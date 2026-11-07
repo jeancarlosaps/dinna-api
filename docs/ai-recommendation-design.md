@@ -274,7 +274,7 @@ Timeout padrão de 8000 ms, com `AbortSignal`. `GEMINI_TIMEOUT_MS`, inteiro de 1
 
 `GEMINI_DIAGNOSTICS` fica desligado, salvo `1` ou `true`. Ligado, o log local registra só o estágio da chamada, o status numérico, contagens, `finishReason` categórico e o tempo da chamada externa. Não registra chave, pedido, texto gerado nem ids, e não muda o JSON da rota.
 
-A resposta do Gemini só é lida como lista de ids. A API:
+A resposta do Gemini só é lida como lista de ids. Partes com `thought: true` são contadas e ficam fora do texto, para o raciocínio não invalidar o JSON. A API:
 
 - descarta id ausente do snapshot, indisponível ou fora do conjunto elegível;
 - descarta duplicata, mantendo a primeira;
