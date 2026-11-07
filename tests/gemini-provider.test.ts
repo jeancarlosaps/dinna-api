@@ -341,4 +341,29 @@ describe('provedor Gemini', () => {
     expect(events.at(-1)?.stage).toBe('network');
     expect(JSON.stringify(events)).not.toContain('secret-key');
   });
+
+  it('classifica timeout na leitura do corpo, sem tratá-lo como JSON inválido', async () => {
+    const events: GeminiDiagnostic[] = [];
+    const provider = createGeminiProvider({
+      apiKey: 'secret-key',
+      diagnostics: true,
+      onDiagnostic: (event) => {
+        events.push(event);
+      },
+      fetchImpl: async () =>
+        ({
+          ok: true,
+          status: 200,
+          json: async () => {
+            throw new DOMException('The operation was aborted', 'TimeoutError');
+          },
+        }) as unknown as Response,
+    });
+
+    await expect(provider(request)).rejects.toMatchObject({ reason: 'timeout' });
+    expect(events).toEqual([
+      expect.objectContaining({ stage: 'timeout', httpStatus: null, geminiMs: expect.any(Number) }),
+    ]);
+    expect(JSON.stringify(events)).not.toContain('secret-key');
+  });
 });

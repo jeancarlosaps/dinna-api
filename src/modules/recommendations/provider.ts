@@ -331,9 +331,14 @@ export function createGeminiProvider(options: GeminiProviderOptions): Recommenda
     let payload: unknown;
     try {
       payload = (await response.json()) as unknown;
-    } catch {
+    } catch (error) {
+      const readMs = Date.now() - started;
+      if (isTimeoutError(error)) {
+        emitDiagnostic(options, blankDiagnostic('timeout', readMs));
+        throw new ProviderUnavailable('timeout');
+      }
       emitDiagnostic(options, {
-        ...blankDiagnostic('json_invalido', geminiMs),
+        ...blankDiagnostic('json_invalido', readMs),
         httpStatus: response.status,
       });
       throw new ProviderUnavailable('invalid_response');
