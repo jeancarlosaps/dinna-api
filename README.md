@@ -427,7 +427,7 @@ O workflow [`.github/workflows/ci.yml`](.github/workflows/ci.yml) roda em todo p
 checkout → Node (versão do .nvmrc) → npm ci → format:check → lint → typecheck → test → build
 ```
 
-Não há deploy nem ambiente de produção.
+O deploy (Railway, uma instância com SQLite em volume) está descrito em [`docs/deploy.md`](docs/deploy.md). A CI não publica nada.
 
 ## 09 · Integração com o app Flutter
 
