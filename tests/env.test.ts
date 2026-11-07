@@ -11,6 +11,7 @@ describe('loadEnv', () => {
       geminiApiKey: undefined,
       geminiTimeoutMs: 8000,
       geminiDiagnostics: false,
+      apiToken: undefined,
     });
   });
 

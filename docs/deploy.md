@@ -2,7 +2,7 @@
 
 Guia do ambiente hospedado do Dinna: uma instância Fastify com SQLite em volume persistente, atrás de HTTPS.
 
-A API não precisa de código específico de provedor. Tudo o que o ambiente hospedado exige já é lido de variáveis de ambiente (`PORT`, `HOST`, `DATABASE_PATH`, `LOG_LEVEL`, `GEMINI_*`).
+A API não precisa de código específico de provedor. Tudo o que o ambiente hospedado exige já é lido de variáveis de ambiente (`PORT`, `HOST`, `DATABASE_PATH`, `LOG_LEVEL`, `GEMINI_*`, `DINNA_*`).
 
 ## Arquitetura
 
@@ -48,30 +48,63 @@ A configuração fica no painel do Railway, não no repositório. O formato `rai
 
 ### Variáveis de ambiente
 
-| Variável                | Valor no Railway     | Observação                                                                           |
-| ----------------------- | -------------------- | ------------------------------------------------------------------------------------ |
-| `DATABASE_PATH`         | `/data/dinna.sqlite` | **Obrigatória.** Sem ela o banco fica fora do volume e some a cada deploy.           |
-| `RAILPACK_NODE_VERSION` | `24`                 | Fixa o Node da CI. Sem ela o `engines` (`>=22.13`) pode resolver outra versão.       |
-| `LOG_LEVEL`             | `info`               | Opcional.                                                                            |
-| `PORT`                  | não definir          | O Railway injeta.                                                                    |
-| `HOST`                  | não definir          | O padrão `0.0.0.0` já é o necessário.                                                |
-| `GEMINI_API_KEY`        | vazio (recomendado)  | Sem chave a recomendação usa o fallback determinístico. Ver [Segurança](#segurança). |
-| `GEMINI_TIMEOUT_MS`     | não definir          | Padrão 8000.                                                                         |
+| Variável                  | Valor no Railway     | Observação                                                                           |
+| ------------------------- | -------------------- | ------------------------------------------------------------------------------------ |
+| `DATABASE_PATH`           | `/data/dinna.sqlite` | **Obrigatória.** Sem ela o banco fica fora do volume e some a cada deploy.           |
+| `RAILPACK_NODE_VERSION`   | `24`                 | Fixa o Node da CI. Sem ela o `engines` (`>=22.13`) pode resolver outra versão.       |
+| `LOG_LEVEL`               | `info`               | Opcional.                                                                            |
+| `PORT`                    | não definir          | O Railway injeta.                                                                    |
+| `HOST`                    | não definir          | O padrão `0.0.0.0` já é o necessário.                                                |
+| `GEMINI_API_KEY`          | vazio (recomendado)  | Sem chave a recomendação usa o fallback determinístico. Ver [Segurança](#segurança). |
+| `GEMINI_TIMEOUT_MS`       | não definir          | Padrão 8000.                                                                         |
+| `DINNA_REQUIRE_API_TOKEN` | `true`               | Liga a proteção por token. Ver [Proteção por token](#proteção-por-token).            |
+| `DINNA_API_TOKEN`         | segredo gerado       | **Obrigatória** com a proteção ligada. Nunca versionar nem colar em chat ou issue.   |
 
-Nunca coloque `GEMINI_API_KEY` no Flutter, no repositório ou em arquivo versionado. Use a aba **Variables** do serviço.
+Nunca coloque `GEMINI_API_KEY` ou `DINNA_API_TOKEN` no repositório ou em arquivo versionado. Use a aba **Variables** do serviço.
 
 Se o deploy falhar com erro de permissão em `/data`, adicione `RAILWAY_RUN_UID=0`.
 
+### Proteção por token
+
+Sem proteção, qualquer pessoa com a URL lê pedidos, altera o cardápio e muda status. No ambiente hospedado a API exige um token compartilhado pela equipe no header `X-Dinna-Api-Token`.
+
+- `GET /health` continua público, para o healthcheck do Railway.
+- Todas as outras rotas, inclusive as que forem criadas depois, exigem o token. Sem ele a resposta é `401 UNAUTHORIZED`, sem ler o body e sem gravar nada.
+- A comparação usa tempo constante. O token não vai para o log, para o banco nem para as mensagens de erro.
+- Configuração inconsistente impede a subida: `DINNA_REQUIRE_API_TOKEN=true` sem token válido, `DINNA_API_TOKEN` definido sem ligar a proteção, ou valor desconhecido na obrigatoriedade. O deploy falha no healthcheck em vez de publicar a API aberta.
+
+**Gerar o token** (na sua máquina, fora do repositório):
+
+```bash
+node -e "console.log(require('node:crypto').randomBytes(32).toString('base64url'))"
+```
+
+Mínimo de 32 caracteres ASCII visíveis, sem espaços. Cole o valor direto em **Variables** do Railway como `DINNA_API_TOKEN` e defina `DINNA_REQUIRE_API_TOKEN=true`. Compartilhe com a equipe por canal privado, nunca em issue, PR, commit ou print.
+
+**Conferir no log de inicialização:** `Proteção por token: ligada`.
+
+**Rotação e revogação:** gere um valor novo e troque `DINNA_API_TOKEN` em **Variables**. Aplique a mudança com o deploy que o Railway propõe. O token anterior para de valer quando a nova instância sobe. Não há período em que os dois valem: atualize os clientes logo em seguida. Faça a rotação depois da apresentação e sempre que o valor vazar.
+
+Limitações:
+
+- é uma barreira de acesso para um ambiente acadêmico, não autenticação. Todos usam o mesmo valor e a API não sabe quem fez cada chamada;
+- quem tiver o token tem acesso total (leitura e escrita);
+- não há rate limit nem bloqueio por tentativas;
+- um token embutido em app distribuído pode ser extraído do binário. Ver [Flutter](#flutter).
+
 ### Validação depois do deploy
 
-Só leituras, a não ser que o ambiente esteja autorizado para testes:
+Só leituras, a não ser que o ambiente esteja autorizado para testes. Leia o token sem gravá-lo no histórico do shell:
 
 ```bash
 API=https://<dominio>.up.railway.app
+read -rs DINNA_API_TOKEN && export DINNA_API_TOKEN
 curl -s "$API/health"
-curl -s "$API/products"
-curl -s "$API/orders"
-curl -s -X POST "$API/ai/recommendation" -H 'content-type: application/json' \
+curl -s -o /dev/null -w '%{http_code}\n' "$API/products"   # esperado: 401
+curl -s -H "X-Dinna-Api-Token: $DINNA_API_TOKEN" "$API/products"
+curl -s -H "X-Dinna-Api-Token: $DINNA_API_TOKEN" "$API/orders"
+curl -s -X POST "$API/ai/recommendation" -H "X-Dinna-Api-Token: $DINNA_API_TOKEN" \
+  -H 'content-type: application/json' \
   -d '{"preferences":{"budget":"from_21_to_35","hunger":"normal","protein":"beef","style":"balanced","taste":"savory"}}'
 ```
 
@@ -122,24 +155,28 @@ As cópias em `/data/backups` ocupam o volume. Depois de exportar, apague as ant
 
 ## Segurança
 
-A API **não tem autenticação**. Uma URL pública expõe:
+A API **não tem autenticação de usuário**. Sem a [proteção por token](#proteção-por-token), uma URL pública expõe:
 
 - escrita no cardápio (`POST`, `PUT`, `DELETE /products`) e em pedidos (`POST /orders`, `PATCH /orders/:id/status`);
 - leitura de todos os pedidos (`GET /orders`);
 - `POST /ai/recommendation`, que gasta quota do Gemini quando há chave configurada.
 
+Com a proteção ligada, tudo isso passa a exigir o token. Quem tem o token continua com acesso total.
+
 O que já existe:
 
+- token compartilhado opcional em `X-Dinna-Api-Token`, com subida bloqueada se a configuração estiver inconsistente;
 - validação de schema em todas as rotas e limite de body de 1 MiB (padrão do Fastify, responde 413);
-- logs sem body, sem headers e sem a chave do Gemini;
-- sem CORS: navegadores de outra origem são bloqueados. Isso **não** protege contra clientes HTTP como `curl` ou o próprio app.
+- logs sem body, sem headers, sem o token e sem a chave do Gemini;
+- sem CORS: navegadores de outra origem são bloqueados. Isso **não** é controle de acesso: não protege contra clientes HTTP como `curl` ou o próprio app.
 
 Regras para o ambiente hospedado:
 
 - usar só dados fictícios; nenhum nome, telefone ou dado pessoal em pedidos;
 - não divulgar a URL fora da equipe;
 - sem `GEMINI_API_KEY`, ou com uma chave de projeto separado e limite de quota definido no Google AI Studio;
-- limite rígido de gasto ligado no Railway.
+- limite rígido de gasto ligado no Railway;
+- `DINNA_REQUIRE_API_TOKEN=true` antes de gerar o domínio público.
 
 ## Flutter
 
@@ -151,6 +188,16 @@ flutter run --dart-define=API_BASE_URL=https://<dominio>.up.railway.app
 
 Sem barra no final. Com HTTPS não é preciso liberar tráfego em texto claro no Android nem exceção de ATS no iOS.
 
+**O app ainda não envia `X-Dinna-Api-Token`.** Com a proteção ligada, só o teste de conexão (`GET /health`) funciona; cardápio, pedidos e recomendação recebem 401. Não aponte o app para o ambiente protegido nem o anuncie como pronto para integração antes da mudança abaixo.
+
+Mudança prevista no Flutter, em issue própria:
+
+- todo acesso HTTP passa pelo `ApiClient` (`getJson` e `postJson`). Basta ele receber um header padrão e somar em cada requisição, sem mexer nos repositórios;
+- o valor viria de `--dart-define=API_TOKEN=...`, ausente em desenvolvimento local;
+- 401 deve aparecer como erro de configuração, não como falha de rede. Hoje o envio de pedido já trata 401 como falha que preserva a `Idempotency-Key`.
+
+Valores de `--dart-define` ficam dentro do binário e podem ser extraídos. Use o token só em builds da equipe para a demonstração, nunca em app publicado em loja, e faça a rotação depois da apresentação.
+
 ## Desligar
 
 Antes de remover o deployment ou excluir o projeto, **exporte o banco** com os passos 1 a 3 de [Cópia avulsa do banco](#cópia-avulsa-do-banco) e confira a cópia local. A ordem importa: o download exige deployment ativo, e os backups do Railway são apagados junto com o volume.
@@ -160,7 +207,7 @@ Antes de remover o deployment ou excluir o projeto, **exporte o banco** com os p
 
 ## Evolução
 
-A topologia atual atende a apresentação e um piloto pequeno. Ela trava em três pontos: uma instância, um arquivo SQLite e nenhuma autenticação.
+A topologia atual atende a apresentação e um piloto pequeno. Ela trava em três pontos: uma instância, um arquivo SQLite e nenhuma autenticação de usuário (só um token compartilhado).
 
 | Fase        | Mudança                                                                                                 | Sinal que justifica                                                                             |
 | ----------- | ------------------------------------------------------------------------------------------------------- | ----------------------------------------------------------------------------------------------- |
