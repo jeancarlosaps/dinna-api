@@ -1,4 +1,4 @@
-import { describe, expect, it } from 'vitest';
+import { describe, expect, it, vi } from 'vitest';
 import {
   buildGeminiRequestBody,
   createGeminiProvider,
@@ -365,5 +365,45 @@ describe('provedor Gemini', () => {
       expect.objectContaining({ stage: 'timeout', httpStatus: null, geminiMs: expect.any(Number) }),
     ]);
     expect(JSON.stringify(events)).not.toContain('secret-key');
+  });
+
+  it('inclui a leitura do corpo no tempo registrado da chamada', async () => {
+    let now = 1_000;
+    const clock = vi.spyOn(Date, 'now').mockImplementation(() => now);
+    const events: GeminiDiagnostic[] = [];
+    try {
+      const provider = createGeminiProvider({
+        apiKey: 'secret-key',
+        diagnostics: true,
+        onDiagnostic: (event) => {
+          events.push(event);
+        },
+        fetchImpl: async () => {
+          now = 1_100;
+          return {
+            ok: true,
+            status: 200,
+            json: async () => {
+              now = 1_450;
+              return {
+                candidates: [
+                  {
+                    finishReason: 'STOP',
+                    content: { parts: [{ text: '{"productIds":["p2"]}' }] },
+                  },
+                ],
+              };
+            },
+          } as unknown as Response;
+        },
+      });
+
+      await expect(provider(request)).resolves.toEqual(['p2']);
+      expect(events[0]?.geminiMs).toBe(450);
+      expect(JSON.stringify(events)).not.toContain('p2');
+      expect(JSON.stringify(events)).not.toContain('secret-key');
+    } finally {
+      clock.mockRestore();
+    }
   });
 });

@@ -347,7 +347,7 @@ export function createGeminiProvider(options: GeminiProviderOptions): Recommenda
     const inspection = inspectGeminiPayload(payload);
     emitDiagnostic(options, {
       stage: inspection.stage,
-      geminiMs,
+      geminiMs: Date.now() - started,
       httpStatus: response.status,
       parts: inspection.parts,
       thoughtParts: inspection.thoughtParts,
