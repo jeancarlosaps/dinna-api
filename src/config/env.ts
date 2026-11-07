@@ -17,7 +17,15 @@ export interface Env {
   geminiTimeoutMs: number;
   /** Log local do estágio da chamada. Desligado, salvo `1` ou `true`. */
   geminiDiagnostics: boolean;
+  /**
+   * Token compartilhado exigido no header `X-Dinna-Api-Token`.
+   * Definido só quando `DINNA_REQUIRE_API_TOKEN` está ligado; ausente, a API fica aberta (uso local).
+   */
+  apiToken: string | undefined;
 }
+
+/** Mínimo de 32 caracteres ASCII visíveis, sem espaço (cabe em header HTTP). */
+const API_TOKEN_PATTERN = /^[\x21-\x7E]{32,}$/;
 
 export function loadEnv(source: NodeJS.ProcessEnv = process.env): Env {
   const port = Number(source.PORT ?? 3333);
@@ -43,7 +51,50 @@ export function loadEnv(source: NodeJS.ProcessEnv = process.env): Env {
     geminiApiKey: readGeminiApiKey(source.GEMINI_API_KEY),
     geminiTimeoutMs: readGeminiTimeoutMs(source.GEMINI_TIMEOUT_MS),
     geminiDiagnostics: readGeminiDiagnostics(source.GEMINI_DIAGNOSTICS),
+    apiToken: readApiToken(source.DINNA_REQUIRE_API_TOKEN, source.DINNA_API_TOKEN),
   };
+}
+
+/**
+ * Proteção ligada exige token válido; desligada não aceita token definido.
+ * Qualquer inconsistência impede a subida. As mensagens nunca trazem o valor do token.
+ */
+function readApiToken(
+  requireValue: string | undefined,
+  tokenValue: string | undefined,
+): string | undefined {
+  const required = readRequireApiToken(requireValue);
+  const token = tokenValue?.trim() ?? '';
+
+  if (!required) {
+    if (token !== '') {
+      throw new Error(
+        'DINNA_API_TOKEN definido sem DINNA_REQUIRE_API_TOKEN=true. Ligue a proteção ou remova o token.',
+      );
+    }
+    return undefined;
+  }
+
+  if (token === '') {
+    throw new Error('DINNA_REQUIRE_API_TOKEN=true exige DINNA_API_TOKEN');
+  }
+  if (!API_TOKEN_PATTERN.test(token)) {
+    throw new Error(
+      'DINNA_API_TOKEN inválido: use ao menos 32 caracteres ASCII visíveis, sem espaços',
+    );
+  }
+  return token;
+}
+
+function readRequireApiToken(value: string | undefined): boolean {
+  const normalized = value?.trim().toLowerCase() ?? '';
+  if (normalized === '' || normalized === '0' || normalized === 'false') {
+    return false;
+  }
+  if (normalized === '1' || normalized === 'true') {
+    return true;
+  }
+  throw new Error('DINNA_REQUIRE_API_TOKEN inválido. Use true ou false.');
 }
 
 function readGeminiDiagnostics(value: string | undefined): boolean {

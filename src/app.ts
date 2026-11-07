@@ -9,6 +9,7 @@ import {
   type RecommendationProvider,
 } from './modules/recommendations/provider.js';
 import { recommendationsRoutes } from './modules/recommendations/recommendations.routes.js';
+import { registerApiTokenProtection } from './shared/http/api-token.js';
 import { registerErrorHandling } from './shared/http/error-handler.js';
 
 export interface RecommendationOptions {
@@ -30,6 +31,11 @@ export interface BuildAppOptions extends FastifyServerOptions {
   /** Popula seed se a tabela estiver vazia. Padrão `true`. */
   seed?: boolean;
   recommendation?: RecommendationOptions;
+  /**
+   * Token exigido em `X-Dinna-Api-Token` por todas as rotas, menos `GET /health`.
+   * Ausente, a API fica aberta (execução local e testes). Validação em `loadEnv`.
+   */
+  apiToken?: string;
 }
 
 /**
@@ -37,11 +43,20 @@ export interface BuildAppOptions extends FastifyServerOptions {
  * Novos módulos (recommendations) entram aqui via app.register.
  */
 export function buildApp(options: BuildAppOptions = {}): FastifyInstance {
-  const { databasePath = ':memory:', seed = true, recommendation, ...fastifyOptions } = options;
+  const {
+    databasePath = ':memory:',
+    seed = true,
+    recommendation,
+    apiToken,
+    ...fastifyOptions
+  } = options;
   const app = Fastify(fastifyOptions);
   const db: Db = openDatabase({ path: databasePath, seed });
 
   registerErrorHandling(app);
+  if (apiToken !== undefined) {
+    registerApiTokenProtection(app, apiToken);
+  }
   app.register(healthRoutes);
   app.register(productsRoutes(db));
   app.register(ordersRoutes(db));
