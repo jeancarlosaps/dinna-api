@@ -50,12 +50,20 @@ export const createOrderItemResponseSchema = {
   },
 } as const;
 
+/** Número público: inteiro sequencial a partir de 1, único no banco. */
+const orderNumberSchema = {
+  type: 'integer',
+  minimum: 1,
+  maximum: Number.MAX_SAFE_INTEGER,
+} as const;
+
 export const orderResponseSchema = {
   type: 'object',
   additionalProperties: false,
-  required: ['id', 'table', 'status', 'items', 'totalCents', 'createdAt'],
+  required: ['id', 'orderNumber', 'table', 'status', 'items', 'totalCents', 'createdAt'],
   properties: {
     id: { type: 'string' },
+    orderNumber: orderNumberSchema,
     table: { type: 'string' },
     status: { type: 'string', enum: ['received', 'preparing', 'ready', 'finished'] },
     items: { type: 'array', items: orderItemResponseSchema },
@@ -64,12 +72,17 @@ export const orderResponseSchema = {
   },
 } as const;
 
+/**
+ * POST 201: `orderNumber` vem em todo pedido novo. O replay de uma chave gravada
+ * antes do número público devolve o `response_json` original, sem o campo.
+ */
 export const createOrderResponseSchema = {
   type: 'object',
   additionalProperties: false,
   required: ['id', 'table', 'status', 'items', 'totalCents', 'createdAt'],
   properties: {
     id: { type: 'string' },
+    orderNumber: orderNumberSchema,
     table: { type: 'string' },
     status: { type: 'string', enum: ['received', 'preparing', 'ready', 'finished'] },
     items: { type: 'array', items: createOrderItemResponseSchema },

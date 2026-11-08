@@ -34,6 +34,7 @@ export function openDatabase(options: OpenDatabaseOptions): Db {
   db.exec(SCHEMA_SQL);
   ensureProductIngredientsColumn(db);
   migrateOrderItemsSnapshot(db);
+  migrateOrderNumbers(db);
 
   if (seed) {
     seedProductsIfEmpty(db);
@@ -164,6 +165,57 @@ function backfillOrderItemSnapshots(db: Db): void {
     }
 
     updateSnapshot.run(productName, unitPriceCents, lineTotalCents, item.id);
+  }
+}
+
+/**
+ * Dá número público a todo pedido sem número e alinha o contador.
+ *
+ * Banco antigo recebe a coluna. Pedidos sem número são numerados na ordem da
+ * fila (`created_at`, depois `id`), a partir do maior número já usado. O id,
+ * os itens, o status, o total e as chaves de idempotência não mudam.
+ *
+ * Tudo roda em `BEGIN IMMEDIATE`: uma falha desfaz a coluna, os números e o
+ * contador juntos, e duas aberturas simultâneas não numeram a mesma linha.
+ * Rodar de novo não altera nada. Pedido gravado sem número por uma versão
+ * anterior da API (rollback) recebe o próximo número na abertura seguinte.
+ */
+function migrateOrderNumbers(db: Db): void {
+  db.exec('BEGIN IMMEDIATE');
+  try {
+    const columns = db.prepare('PRAGMA table_info(orders)').all() as unknown as Array<{
+      name: string;
+    }>;
+    if (!columns.some((column) => column.name === 'order_number')) {
+      db.exec('ALTER TABLE orders ADD COLUMN order_number INTEGER CHECK (order_number >= 1)');
+    }
+
+    const sequence = db
+      .prepare('SELECT last_value FROM order_number_sequence WHERE id = 1')
+      .get() as unknown as { last_value: number } | undefined;
+    const used = db.prepare('SELECT MAX(order_number) AS max FROM orders').get() as unknown as {
+      max: number | null;
+    };
+    let lastValue = Math.max(sequence?.last_value ?? 0, used.max ?? 0);
+
+    const unnumbered = db
+      .prepare('SELECT id FROM orders WHERE order_number IS NULL ORDER BY created_at ASC, id ASC')
+      .all() as unknown as Array<{ id: string }>;
+    const assign = db.prepare('UPDATE orders SET order_number = ? WHERE id = ?');
+    for (const order of unnumbered) {
+      lastValue += 1;
+      assign.run(lastValue, order.id);
+    }
+
+    db.exec('CREATE UNIQUE INDEX IF NOT EXISTS idx_orders_order_number ON orders(order_number)');
+    db.prepare(
+      `INSERT INTO order_number_sequence (id, last_value) VALUES (1, ?)
+       ON CONFLICT(id) DO UPDATE SET last_value = MAX(last_value, excluded.last_value)`,
+    ).run(lastValue);
+    db.exec('COMMIT');
+  } catch (error) {
+    db.exec('ROLLBACK');
+    throw error;
   }
 }
 

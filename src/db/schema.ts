@@ -1,4 +1,11 @@
-/** Schema R0/R1: products, orders e chaves de idempotência do POST /orders. */
+/**
+ * Schema R0/R1: products, orders e chaves de idempotência do POST /orders.
+ *
+ * `orders.order_number` é o número público do pedido. A coluna aceita NULL
+ * porque banco antigo a recebe por ALTER TABLE; a abertura numera essas linhas
+ * e cria o índice UNIQUE (`migrateOrderNumbers`). O índice não fica aqui:
+ * em banco antigo a coluna ainda não existe quando este SQL roda.
+ */
 export const SCHEMA_SQL = `
 CREATE TABLE IF NOT EXISTS products (
   id TEXT PRIMARY KEY NOT NULL,
@@ -17,7 +24,15 @@ CREATE TABLE IF NOT EXISTS orders (
   table_label TEXT NOT NULL,
   status TEXT NOT NULL,
   total_cents INTEGER NOT NULL CHECK (total_cents >= 0),
-  created_at TEXT NOT NULL
+  created_at TEXT NOT NULL,
+  order_number INTEGER CHECK (order_number >= 1)
+);
+
+-- Último número público entregue. Uma linha só (id = 1). Não volta atrás,
+-- mesmo que um pedido deixe de existir.
+CREATE TABLE IF NOT EXISTS order_number_sequence (
+  id INTEGER PRIMARY KEY NOT NULL CHECK (id = 1),
+  last_value INTEGER NOT NULL CHECK (last_value >= 0)
 );
 
 CREATE TABLE IF NOT EXISTS order_items (

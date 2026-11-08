@@ -152,9 +152,9 @@ function createOldCatalog(): string {
     );
 
     db.prepare(
-      `INSERT INTO orders (id, table_label, status, total_cents, created_at)
-       VALUES (?, ?, ?, ?, ?)`,
-    ).run('o_demo', '7', 'preparing', 3290, '2026-10-20T12:00:00.000Z');
+      `INSERT INTO orders (id, order_number, table_label, status, total_cents, created_at)
+       VALUES (?, ?, ?, ?, ?, ?)`,
+    ).run('o_demo', 1, '7', 'preparing', 3290, '2026-10-20T12:00:00.000Z');
     db.prepare(
       `INSERT INTO order_items (
          order_id, product_id, product_name, unit_price_cents, line_total_cents, quantity, note
@@ -265,6 +265,7 @@ describe('ingredientes ilustrativos do cardápio de demonstração', () => {
     expect(orders.json()).toEqual([
       {
         id: 'o_demo',
+        orderNumber: 1,
         table: '7',
         status: 'preparing',
         items: [
@@ -388,6 +389,7 @@ describe('ingredientes ilustrativos do cardápio de demonstração', () => {
     expect(orders.json()).toEqual([
       {
         id: 'o_demo',
+        orderNumber: 1,
         table: '7',
         status: 'preparing',
         items: [

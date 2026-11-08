@@ -158,6 +158,7 @@ describe('migração de ingredients em banco já existente', () => {
     expect(orders.json()).toEqual([
       {
         id: 'o_legacy',
+        orderNumber: 1,
         table: '4',
         status: 'received',
         items: [
@@ -338,6 +339,7 @@ describe('migração de ingredients em banco já existente', () => {
     expect(listed.json()).toEqual([
       {
         id: 'o_legacy',
+        orderNumber: 1,
         table: '4',
         status: 'received',
         items: [],
