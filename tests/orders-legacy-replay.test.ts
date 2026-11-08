@@ -285,6 +285,7 @@ describe('replay de pedido anterior ao snapshot', () => {
     expect(detail.statusCode).toBe(200);
     expect(detail.json()).toEqual({
       ...legacyResponse,
+      orderNumber: 1,
       items: [migratedItem],
     });
 
@@ -300,6 +301,7 @@ describe('replay de pedido anterior ao snapshot', () => {
     expect(patched.statusCode).toBe(200);
     expect(patched.json()).toEqual({
       ...legacyResponse,
+      orderNumber: 1,
       status: 'preparing',
       items: [migratedItem],
     });

@@ -21,6 +21,7 @@ interface ProductPriceRow {
 
 interface OrderWithItemRow {
   id: string;
+  order_number: number | null;
   table_label: string;
   status: OrderStatus;
   total_cents: number;
@@ -54,6 +55,7 @@ interface IdempotencyKeyRow {
 const ORDER_WITH_ITEMS_SELECT = `
   SELECT
     o.id,
+    o.order_number,
     o.table_label,
     o.status,
     o.total_cents,
@@ -74,8 +76,13 @@ function mapOrderRows(rows: OrderWithItemRow[]): Order[] {
 
   for (const row of rows) {
     if (currentOrder?.id !== row.id) {
+      // A abertura do banco numera todo pedido. Sem número, a resposta não sai.
+      if (row.order_number === null) {
+        throw new Error(`Pedido ${row.id} sem número público`);
+      }
       currentOrder = {
         id: row.id,
+        orderNumber: row.order_number,
         table: row.table_label,
         status: row.status,
         items: [],
@@ -128,6 +135,23 @@ export function getOrderById(db: Db, id: string): Order {
 
 function newOrderId(): string {
   return `o_${randomUUID()}`;
+}
+
+/**
+ * Próximo número público. Só roda dentro da transação do POST
+ * (`BEGIN IMMEDIATE`): o lock de escrita serializa conexões concorrentes e o
+ * rollback devolve o contador junto com o pedido.
+ */
+function nextOrderNumber(db: Db): number {
+  const row = db
+    .prepare(
+      'UPDATE order_number_sequence SET last_value = last_value + 1 WHERE id = 1 RETURNING last_value',
+    )
+    .get() as unknown as { last_value: number } | undefined;
+  if (row === undefined) {
+    throw new Error('Contador de número público ausente');
+  }
+  return row.last_value;
 }
 
 function isIdempotencyKeyConflict(error: unknown): boolean {
@@ -232,6 +256,10 @@ function isStoredOrderResponse(value: unknown): value is StoredOrderResponse {
 
   return (
     typeof value.id === 'string' &&
+    (value.orderNumber === undefined ||
+      (typeof value.orderNumber === 'number' &&
+        Number.isSafeInteger(value.orderNumber) &&
+        value.orderNumber >= 1)) &&
     typeof value.table === 'string' &&
     isOrderStatus(value.status) &&
     Array.isArray(value.items) &&
@@ -245,6 +273,7 @@ function isStoredOrderResponse(value: unknown): value is StoredOrderResponse {
 function storedOrderResponseFromOrder(order: Order): StoredOrderResponse {
   return {
     id: order.id,
+    orderNumber: order.orderNumber,
     table: order.table,
     status: order.status,
     totalCents: order.totalCents,
@@ -328,6 +357,7 @@ function insertOrder(db: Db, input: CreateOrderInput, idempotencyKey?: string): 
 
   const order: Order = {
     id: newOrderId(),
+    orderNumber: nextOrderNumber(db),
     table: input.table,
     status: 'received',
     items,
@@ -336,9 +366,9 @@ function insertOrder(db: Db, input: CreateOrderInput, idempotencyKey?: string): 
   };
 
   db.prepare(
-    `INSERT INTO orders (id, table_label, status, total_cents, created_at)
-     VALUES (?, ?, ?, ?, ?)`,
-  ).run(order.id, order.table, order.status, order.totalCents, order.createdAt);
+    `INSERT INTO orders (id, order_number, table_label, status, total_cents, created_at)
+     VALUES (?, ?, ?, ?, ?, ?)`,
+  ).run(order.id, order.orderNumber, order.table, order.status, order.totalCents, order.createdAt);
 
   const insertItem = db.prepare(
     `INSERT INTO order_items (

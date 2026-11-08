@@ -141,6 +141,7 @@ Snapshot do cardápio no momento da criação. Não muda se o produto for editad
 ```json
 {
   "id": "o1",
+  "orderNumber": 42,
   "table": "12",
   "status": "received",
   "items": [
@@ -158,14 +159,15 @@ Snapshot do cardápio no momento da criação. Não muda se o produto for editad
 }
 ```
 
-| Campo        | Tipo          | Obrigatório    | Notas                                           |
-| ------------ | ------------- | -------------- | ----------------------------------------------- |
-| `id`         | `string`      | sim (resposta) | Gerado pela API                                 |
-| `table`      | `string`      | sim            | Identificador da mesa (ex.: `"12"`)             |
-| `status`     | `string`      | sim            | Ver ciclo abaixo                                |
-| `items`      | `OrderItem[]` | sim            | Mín. 1 item (resposta enriquecida)              |
-| `totalCents` | `number`      | sim (resposta) | Soma dos `lineTotalCents` no momento da criação |
-| `createdAt`  | `string`      | sim (resposta) | ISO-8601 UTC                                    |
+| Campo         | Tipo          | Obrigatório    | Notas                                           |
+| ------------- | ------------- | -------------- | ----------------------------------------------- |
+| `id`          | `string`      | sim (resposta) | Gerado pela API                                 |
+| `orderNumber` | `number`      | sim (resposta) | Número público sequencial (ver abaixo)          |
+| `table`       | `string`      | sim            | Identificador da mesa (ex.: `"12"`)             |
+| `status`      | `string`      | sim            | Ver ciclo abaixo                                |
+| `items`       | `OrderItem[]` | sim            | Mín. 1 item (resposta enriquecida)              |
+| `totalCents`  | `number`      | sim (resposta) | Soma dos `lineTotalCents` no momento da criação |
+| `createdAt`   | `string`      | sim (resposta) | ISO-8601 UTC                                    |
 
 #### Ciclo de status
 
@@ -321,7 +323,7 @@ Lista pedidos da fila. Sem paginação no MVP.
 | `table`  | `string` | não         | —       | Filtra pela mesa              |
 
 **200 OK** — array de `Order`, ordenado por `createdAt` ascendente (mais antigo primeiro — fila).
-Cada item contém `id`, `table`, `status`, `items`, `totalCents` e `createdAt`. Cada elemento de `items` contém `productId`, `name`, `quantity`, `unitPriceCents`, `lineTotalCents` e, quando informado, `note`.
+Cada item contém `id`, `orderNumber`, `table`, `status`, `items`, `totalCents` e `createdAt`. Cada elemento de `items` contém `productId`, `name`, `quantity`, `unitPriceCents`, `lineTotalCents` e, quando informado, `note`.
 
 `status` aceita somente `received`, `preparing`, `ready` ou `finished`; `table` é comparada exatamente. Os filtros podem ser combinados. Consultas sem resultados retornam `[]`; parâmetros inválidos retornam **400 `VALIDATION_ERROR`**.
 
@@ -354,6 +356,7 @@ Com o header:
 - Chave válida e ainda não usada grava o pedido e a chave na **mesma transação** e responde **201** com o `Order`.
 - A mesma chave e um payload semanticamente equivalente devolvem **201** com o corpo original da criação (mesmo `id`, `status`, itens, `totalCents` e `createdAt`), sem criar outro pedido. Um `PATCH` posterior muda o pedido persistido e a resposta de `GET /orders`, mas não altera essa repetição do `POST`. Produto que fica indisponível ou muda de nome ou `priceCents` depois da criação também não altera essa repetição: a consulta da chave ocorre antes das validações do catálogo atual, e o replay não reconstrói a resposta a partir do estado atual.
 - Pedido criado por esta versão grava e repete o snapshot completo (`name`, `unitPriceCents`, `lineTotalCents`). Chave gravada antes do snapshot repete o corpo legado, sem esses campos. A repetição não consulta o cardápio, não recalcula preços e não substitui o JSON pelo pedido que `GET /orders/:id` devolve depois da migração. A linha em `idempotency_keys` não é reescrita.
+- Pedido criado por esta versão grava e repete `orderNumber`. Chave gravada antes do número público repete o corpo original sem `orderNumber`; o número desse pedido aparece em `GET /orders/:id`.
 - `GET /orders`, `GET /orders/:id` e `PATCH /orders/:id/status` continuam na representação enriquecida. Pedido antigo recebe o snapshot na migração de `order_items`, a partir do cardápio da abertura. Essa representação não alimenta o replay do `POST`.
 - A mesma chave e um payload diferente respondem **409** `IDEMPOTENCY_KEY_CONFLICT` e não criam pedido. A chave continua associada ao primeiro pedido.
 - Header presente e inválido (vazio, não UUID, UUID nulo ou repetido) responde **400** `VALIDATION_ERROR` e não cria pedido.
@@ -410,6 +413,7 @@ Exemplo de resposta:
 ```json
 {
   "id": "o_550e8400-e29b-41d4-a716-446655440000",
+  "orderNumber": 42,
   "table": "12",
   "status": "received",
   "items": [
@@ -613,8 +617,22 @@ O token é uma barreira de acesso compartilhada pela equipe para a apresentaçã
 2. Limite da garantia: ela depende da preservação contínua da linha em `idempotency_keys`. Enquanto essa linha existir, a mesma chave não cria outro pedido. Uma chave apagada por uma versão anterior não é reconstruída. Se chegar um novo `POST` com essa chave ausente, ele segue o caminho de uma intenção nova: um payload aceito cria outro pedido, mesmo que o pedido original permaneça em `orders`. O mesmo ocorre com uma chave que nunca chegou ao commit. Não há backfill e não se usa `INSERT OR IGNORE`.
 3. Crescimento: cada linha guarda a chave, o fingerprint, o `order_id`, `created_at` e o JSON original. No pedido de exemplo, a ordem de grandeza fica em torno de 1 a 2 KB por chave, com o registro e o índice. Cerca de 200 criações por dia somam em torno de 100 MB por ano; cerca de 2 000 por dia, em torno de 1 GB por ano. O backup cresce junto. Não há expurgo. `created_at` não é prazo de validade; o índice `idx_idempotency_keys_created_at` deixa de servir a uma limpeza e permanece no schema já aplicado.
 4. Rollback floor: depois que um binário sem `DELETE` em `idempotency_keys` atender o ambiente, não se publica de novo um binário que apague essas linhas. Restaurar o arquivo do banco é outra operação. Um backup anterior ao corte pode já não ter as linhas de chave, e esta versão não as reconstrói; um `POST` aceito com uma dessas chaves ausentes cria outro pedido. Um backup posterior ao corte só é seguro com um binário que não purga. Subir o binário antigo sobre o banco novo volta a apagar chaves com mais de 24 horas.
-5. O contrato dos consumidores que não enviam `Idempotency-Key` permanece: cada `POST` cria um pedido e o corpo da resposta não ganha campo novo.
+5. O contrato dos consumidores que não enviam `Idempotency-Key` permanece: cada `POST` cria um pedido. O único campo acrescentado depois é `orderNumber` (SCRUM-94), aditivo.
 6. O fingerprint gravado usa a canonicalização atual. Alterá-la exige versionamento compatível com os hashes já persistidos. O schema de `POST /orders` permanece compatível com os payloads já aceitos. Replay de intenção commitada, com o mesmo payload, não pode ser rejeitado por mudança posterior do catálogo nem por exigência nova de schema incompatível com esse payload. Esta entrega não versiona o fingerprint nem muda o schema.
+
+## Número público do pedido (SCRUM-94)
+
+`orderNumber` identifica o pedido para pessoas: cliente, cozinha e balcão. `id` continua sendo a chave técnica de rota, relacionamento e idempotência.
+
+1. Inteiro sequencial a partir de `1`, único no banco inteiro. Não há sequência por mesa nem por dia.
+2. Atribuído na criação, dentro da mesma transação do pedido. Não muda depois, inclusive em `PATCH`.
+3. Não é reutilizado. O contador `order_number_sequence` só avança; um pedido que deixe de existir não devolve o número.
+4. Pedido recusado (404, 400) ou transação desfeita não consome número.
+5. A formatação é do cliente. Sugestão: `#` mais quatro dígitos com zeros à esquerda (`42` → `#0042`). O número não volta a zero depois de `9999` (`10000` → `#10000`).
+6. Aparece em `POST /orders` (201), `GET /orders`, `GET /orders/:id` e `PATCH /orders/:id/status`.
+7. O replay de uma chave gravada antes desta versão devolve o corpo original sem `orderNumber`. O cliente deve tratar o campo como opcional na resposta do `POST` e, se faltar, buscar `GET /orders/:id` ou mostrar o pedido sem número.
+
+Pedidos já gravados recebem número na primeira abertura desta versão, na ordem da fila (`createdAt` e, no empate, `id`). `id`, itens, status, total e chaves de idempotência não mudam.
 
 ## Persistência (SCRUM-25)
 
@@ -624,6 +642,8 @@ O token é uma barreira de acesso compartilhada pela equipe para a apresentaçã
 - Soft-delete e filtros de `GET /products` seguem este contrato.
 - `idempotency_keys` guarda a chave, o fingerprint SHA-256 do body canônico, o `order_id`, `created_at` e o JSON da resposta original. A repetição do `POST` devolve essa resposta, não o pedido depois de uma mudança de status. A linha não é apagada por idade.
 - `order_items` guarda snapshot de `product_name`, `unit_price_cents` e `line_total_cents` na criação. Banco antigo recebe essas colunas na abertura (`ALTER` + backfill a partir do cardápio atual). Esse backfill não reescreve `idempotency_keys.response_json`. O replay do `POST` continua devolvendo o JSON gravado, não o item migrado. Se o preço atual vezes a quantidade não couber em inteiro seguro, a migração não grava `unit_price_cents` nem `line_total_cents` dessa linha e não coloca outro número no lugar. O nome pode ser preenchido. Uma abertura seguinte tenta o snapshot de preço de novo.
+
+- `orders.order_number` guarda o número público, com índice `UNIQUE` (`idx_orders_order_number`). `order_number_sequence` guarda o último número entregue, numa linha só. Banco antigo recebe a coluna na abertura: `ALTER`, numeração das linhas sem número, índice e contador, tudo numa transação `BEGIN IMMEDIATE`. Uma falha desfaz o conjunto; abrir de novo não muda número já atribuído. A coluna aceita `NULL` para que uma versão anterior da API continue gravando pedidos depois de um rollback; esses pedidos recebem número na abertura seguinte desta versão.
 
 ### Coluna `products.ingredients`
 

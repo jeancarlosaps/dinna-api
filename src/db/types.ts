@@ -83,7 +83,14 @@ export interface CreateOrderInput {
 }
 
 export interface Order {
+  /** Id técnico (`o_<uuid>`). Chave de rota, relacionamento e idempotência. */
   id: string;
+  /**
+   * Número público do pedido, sequencial e único no banco (1, 2, 3…).
+   * Não muda depois de atribuído e não volta a zero. A formatação
+   * (`#0042`) fica com o cliente.
+   */
+  orderNumber: number;
   table: string;
   status: OrderStatus;
   items: OrderItem[];
@@ -92,11 +99,13 @@ export interface Order {
 }
 
 /**
- * Corpo de `POST /orders`, inclusive replay de chave anterior ao snapshot.
- * Não é a representação enriquecida de `GET` e `PATCH`.
+ * Corpo de `POST /orders`, inclusive replay de chave anterior ao snapshot
+ * ou ao número público. Não é a representação enriquecida de `GET` e `PATCH`.
  */
 export interface StoredOrderResponse {
   id: string;
+  /** Ausente no `response_json` gravado antes do número público. */
+  orderNumber?: number;
   table: string;
   status: OrderStatus;
   items: StoredOrderItem[];

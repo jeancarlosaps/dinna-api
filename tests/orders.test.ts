@@ -43,6 +43,7 @@ describe('orders', () => {
     expect(filtered.json()).toEqual([
       {
         id: firstOrder.json().id,
+        orderNumber: 1,
         table: '12',
         status: 'received',
         items: [
