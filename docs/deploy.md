@@ -92,6 +92,22 @@ Limitações:
 - não há rate limit nem bloqueio por tentativas;
 - um token embutido em app distribuído pode ser extraído do binário. Ver [Flutter](#flutter).
 
+### Publicar uma versão nova
+
+O ambiente `production` não tem deploy automático: não existe gatilho de branch configurado, então merge ou push na `dev` não publica nada. O **Redeploy** do painel repete o commit do deployment atual e também não leva código novo.
+
+Para publicar um commit:
+
+1. Exporte o banco com os passos 1 a 3 de [Cópia avulsa do banco](#cópia-avulsa-do-banco) e confira a cópia. Se a versão tiver migração de schema, ensaie a migração numa cópia descartável desse arquivo antes de seguir.
+2. Dispare o deploy do commit pela CLI autenticada. Os ids do serviço e do ambiente estão em `railway status --json`:
+
+   ```bash
+   railway api 'mutation { serviceInstanceDeployV2(serviceId: "<service-id>", environmentId: "<environment-id>", commitSha: "<sha-da-dev>") }'
+   ```
+
+3. Acompanhe o deployment. As migrações rodam quando a API abre o banco, antes de aceitar requisições, e o healthcheck em `/health` precisa passar dentro do timeout configurado.
+4. Faça a [validação](#validação-depois-do-deploy). Se a versão nova se comportar mal, faça o **Redeploy** do deployment anterior em **Deployments**.
+
 ### Validação depois do deploy
 
 Só leituras, a não ser que o ambiente esteja autorizado para testes. Leia o token sem gravá-lo no histórico do shell:
