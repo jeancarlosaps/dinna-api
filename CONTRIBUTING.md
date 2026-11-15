@@ -5,24 +5,37 @@ Este guia vale para os quatro integrantes do Dinna. O repositório irmão, [dinn
 ## Fluxo
 
 ```text
-issue no Jira → branch a partir da main → commits pequenos → validação local → PR → CI verde → revisão → merge
+issue no Jira → branch a partir da dev → commits pequenos → validação local → PR para a dev → CI verde → revisão → merge
 ```
 
 1. **Escolha uma issue** no [Jira (SCRUM)](https://jeancarlosaps.atlassian.net/jira/software/projects/SCRUM/boards/1) e mova-a para _Em andamento_.
-2. **Atualize a main** e crie sua branch:
+2. **Atualize a dev** e crie sua branch. O clone começa na `main`, a branch padrão; os comandos abaixo trazem a `dev` mesmo assim:
 
    ```bash
-   git switch main
+   git fetch origin
+   git switch dev
    git pull
    git switch -c feature/SCRUM-<n>-descricao-curta
    ```
 
 3. **Implemente** só o escopo da issue. Achados fora do escopo viram outra issue, não entram no mesmo PR.
 4. **Valide localmente** (seção abaixo).
-5. **Abra o PR** para a `main` usando o template.
+5. **Abra o PR** para a `dev` usando o template.
 6. **Peça revisão** a outro integrante. O merge acontece com a CI verde e uma aprovação.
+7. **Promoção:** depois de validada, a `dev` é promovida para a `main` por PR.
 
-## Branches
+## Branches principais
+
+| Branch | Papel                                   | Recebe                                                 |
+| ------ | --------------------------------------- | ------------------------------------------------------ |
+| `main` | Versão estável e integrada              | PR da `dev` quando a equipe decide publicar uma versão |
+| `dev`  | Integração contínua das funcionalidades | PRs das branches de trabalho                           |
+
+Ninguém faz push direto na `main` nem na `dev`: toda mudança entra por pull request.
+
+## Branches de trabalho
+
+Toda branch de trabalho nasce da `dev` e volta para a `dev` por PR.
 
 | Tipo           | Padrão                        | Quando usar                               |
 | -------------- | ----------------------------- | ----------------------------------------- |
@@ -89,8 +102,8 @@ Quem revisa verifica:
 - [ ] CI verde
 - [ ] Uma aprovação de outro integrante
 - [ ] Conversas resolvidas
-- [ ] Branch atualizada com a `main`
+- [ ] Branch atualizada com a `dev`
 
 Depois do merge, mova a issue no Jira só se os critérios de aceite dela foram atendidos.
 
-> A proteção automática da `main` (exigir PR, CI e revisão) não está disponível no plano atual do GitHub para repositórios privados. Por isso esses critérios dependem da disciplina da equipe: **não faça push direto na `main`.**
+> As branches `main` e `dev` não têm proteção automática configurada no GitHub. Por isso esses critérios dependem da disciplina da equipe: **não faça push direto na `main` nem na `dev`.**

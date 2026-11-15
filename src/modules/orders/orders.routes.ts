@@ -1,0 +1,186 @@
+import type { FastifyInstance, FastifyPluginAsync } from 'fastify';
+import type { Db } from '../../db/client.js';
+import type { CreateOrderInput, OrderListQuery, UpdateOrderStatusInput } from '../../db/types.js';
+import { parseIdempotencyKey } from './order-idempotency.js';
+import { createOrder, getOrderById, listOrders, updateOrderStatus } from './orders.repository.js';
+
+/** Body de criação: só referência ao cardápio. */
+const createOrderItemSchema = {
+  type: 'object',
+  additionalProperties: false,
+  required: ['productId', 'quantity'],
+  properties: {
+    productId: { type: 'string', minLength: 1 },
+    quantity: { type: 'integer', minimum: 1, maximum: Number.MAX_SAFE_INTEGER },
+    note: { type: 'string', maxLength: 200 },
+  },
+} as const;
+
+/** GET e PATCH: snapshot de nome e preços obrigatório. */
+export const orderItemResponseSchema = {
+  type: 'object',
+  additionalProperties: false,
+  required: ['productId', 'name', 'quantity', 'unitPriceCents', 'lineTotalCents'],
+  properties: {
+    productId: { type: 'string', minLength: 1 },
+    name: { type: 'string', minLength: 1 },
+    quantity: { type: 'integer', minimum: 1, maximum: Number.MAX_SAFE_INTEGER },
+    unitPriceCents: { type: 'integer', minimum: 0 },
+    lineTotalCents: { type: 'integer', minimum: 0 },
+    note: { type: 'string', maxLength: 200 },
+  },
+} as const;
+
+/**
+ * POST 201: o snapshot entra na resposta quando foi gravado.
+ * Replay de `response_json` anterior não traz `name` nem preços;
+ * o serializer não pode exigir esses campos nem preenchê-los.
+ */
+export const createOrderItemResponseSchema = {
+  type: 'object',
+  additionalProperties: false,
+  required: ['productId', 'quantity'],
+  properties: {
+    productId: { type: 'string', minLength: 1 },
+    name: { type: 'string', minLength: 1 },
+    quantity: { type: 'integer', minimum: 1, maximum: Number.MAX_SAFE_INTEGER },
+    unitPriceCents: { type: 'integer', minimum: 0 },
+    lineTotalCents: { type: 'integer', minimum: 0 },
+    note: { type: 'string', maxLength: 200 },
+  },
+} as const;
+
+/** Número público: inteiro sequencial a partir de 1, único no banco. */
+const orderNumberSchema = {
+  type: 'integer',
+  minimum: 1,
+  maximum: Number.MAX_SAFE_INTEGER,
+} as const;
+
+export const orderResponseSchema = {
+  type: 'object',
+  additionalProperties: false,
+  required: ['id', 'orderNumber', 'table', 'status', 'items', 'totalCents', 'createdAt'],
+  properties: {
+    id: { type: 'string' },
+    orderNumber: orderNumberSchema,
+    table: { type: 'string' },
+    status: { type: 'string', enum: ['received', 'preparing', 'ready', 'finished'] },
+    items: { type: 'array', items: orderItemResponseSchema },
+    totalCents: { type: 'integer', minimum: 0 },
+    createdAt: { type: 'string', format: 'date-time' },
+  },
+} as const;
+
+/**
+ * POST 201: `orderNumber` vem em todo pedido novo. O replay de uma chave gravada
+ * antes do número público devolve o `response_json` original, sem o campo.
+ */
+export const createOrderResponseSchema = {
+  type: 'object',
+  additionalProperties: false,
+  required: ['id', 'table', 'status', 'items', 'totalCents', 'createdAt'],
+  properties: {
+    id: { type: 'string' },
+    orderNumber: orderNumberSchema,
+    table: { type: 'string' },
+    status: { type: 'string', enum: ['received', 'preparing', 'ready', 'finished'] },
+    items: { type: 'array', items: createOrderItemResponseSchema },
+    totalCents: { type: 'integer', minimum: 0 },
+    createdAt: { type: 'string', format: 'date-time' },
+  },
+} as const;
+
+export function ordersRoutes(db: Db): FastifyPluginAsync {
+  return async function registerOrders(app: FastifyInstance): Promise<void> {
+    app.get<{ Querystring: OrderListQuery }>(
+      '/orders',
+      {
+        schema: {
+          querystring: {
+            type: 'object',
+            additionalProperties: false,
+            properties: {
+              status: { type: 'string', enum: ['received', 'preparing', 'ready', 'finished'] },
+              table: { type: 'string', minLength: 1 },
+            },
+          },
+          response: {
+            200: { type: 'array', items: orderResponseSchema },
+          },
+        },
+      },
+      async (request) => listOrders(db, request.query),
+    );
+
+    app.get<{ Params: { id: string } }>(
+      '/orders/:id',
+      {
+        schema: {
+          params: {
+            type: 'object',
+            additionalProperties: false,
+            required: ['id'],
+            properties: { id: { type: 'string', minLength: 1 } },
+          },
+          response: {
+            200: orderResponseSchema,
+          },
+        },
+      },
+      async (request) => getOrderById(db, request.params.id),
+    );
+
+    app.patch<{ Params: { id: string }; Body: UpdateOrderStatusInput }>(
+      '/orders/:id/status',
+      {
+        schema: {
+          params: {
+            type: 'object',
+            additionalProperties: false,
+            required: ['id'],
+            properties: { id: { type: 'string', minLength: 1 } },
+          },
+          body: {
+            type: 'object',
+            additionalProperties: false,
+            required: ['status'],
+            properties: {
+              status: { type: 'string', enum: ['received', 'preparing', 'ready', 'finished'] },
+            },
+          },
+          response: {
+            200: orderResponseSchema,
+          },
+        },
+      },
+      async (request) => updateOrderStatus(db, request.params.id, request.body),
+    );
+
+    app.post<{ Body: CreateOrderInput }>(
+      '/orders',
+      {
+        schema: {
+          body: {
+            type: 'object',
+            additionalProperties: false,
+            required: ['table', 'items'],
+            properties: {
+              table: { type: 'string', minLength: 1 },
+              items: { type: 'array', minItems: 1, items: createOrderItemSchema },
+            },
+          },
+          response: {
+            201: createOrderResponseSchema,
+          },
+        },
+      },
+      async (request, reply) => {
+        reply.header('Idempotency-Retention', 'permanent');
+        const idempotencyKey = parseIdempotencyKey(request.headers['idempotency-key']);
+        const order = createOrder(db, request.body, idempotencyKey);
+        return reply.status(201).send(order);
+      },
+    );
+  };
+}
