@@ -31,7 +31,7 @@
 </p>
 
 <p align="center">
-  <a href="https://github.com/jeancarlosaps/dinna-api/actions/workflows/ci.yml"><img src="https://github.com/jeancarlosaps/dinna-api/actions/workflows/ci.yml/badge.svg?event=pull_request" alt="Status da CI nos pull requests" /></a>
+  <a href="https://github.com/jeancarlosaps/dinna-api/actions/workflows/ci.yml"><img src="https://github.com/jeancarlosaps/dinna-api/actions/workflows/ci.yml/badge.svg?branch=main" alt="Status da CI na branch main" /></a>
   <img src="https://img.shields.io/badge/Node.js-24%20LTS-5E7355?logo=nodedotjs&amp;logoColor=white" alt="Node.js 24 LTS" />
   <img src="https://img.shields.io/badge/TypeScript-6.0.3-B4532A?logo=typescript&amp;logoColor=white" alt="TypeScript 6.0.3" />
   <img src="https://img.shields.io/badge/Fastify-5.12.7-2A211C?logo=fastify&amp;logoColor=white" alt="Fastify 5.12.7" />
