@@ -11,15 +11,17 @@
 
 <p align="center">
   <strong>Da mesa à operação.</strong><br />
-  A API REST do Dinna: produtos, pedidos, status e, no futuro, recomendações, em um monólito modular simples.
+  A API REST do Dinna: produtos, pedidos, status e recomendação de pratos, em um monólito modular simples.
 </p>
 
 <p align="center">
   <a href="#comece-aqui"><strong>COMEÇAR →</strong></a>
   &nbsp;·&nbsp;
-  <a href="#estado-atual">O QUE JÁ EXISTE</a>
+  <a href="#estado-atual">FUNCIONALIDADES</a>
   &nbsp;·&nbsp;
   <a href="docs/api-contract.md">CONTRATO REST</a>
+  &nbsp;·&nbsp;
+  <a href="#documentacao-do-projeto">DOCUMENTAÇÃO</a>
   &nbsp;·&nbsp;
   <a href="#roadmap">ROADMAP</a>
   &nbsp;·&nbsp;
@@ -29,11 +31,11 @@
 </p>
 
 <p align="center">
-  <a href="https://github.com/jeancarlosaps/dinna-api/actions/workflows/ci.yml"><img src="https://github.com/jeancarlosaps/dinna-api/actions/workflows/ci.yml/badge.svg?branch=main" alt="Status da CI na branch main" /></a>
+  <a href="https://github.com/jeancarlosaps/dinna-api/actions/workflows/ci.yml"><img src="https://github.com/jeancarlosaps/dinna-api/actions/workflows/ci.yml/badge.svg?event=pull_request" alt="Status da CI nos pull requests" /></a>
   <img src="https://img.shields.io/badge/Node.js-24%20LTS-5E7355?logo=nodedotjs&amp;logoColor=white" alt="Node.js 24 LTS" />
   <img src="https://img.shields.io/badge/TypeScript-6.0.3-B4532A?logo=typescript&amp;logoColor=white" alt="TypeScript 6.0.3" />
   <img src="https://img.shields.io/badge/Fastify-5.12.7-2A211C?logo=fastify&amp;logoColor=white" alt="Fastify 5.12.7" />
-  <img src="https://img.shields.io/badge/status-R0%20%C2%B7%20funda%C3%A7%C3%A3o%20em%20andamento-A86B12" alt="Status: R0, fundação em andamento" />
+  <img src="https://img.shields.io/badge/status-MVP%20funcional-5E7355" alt="Status: MVP funcional" />
 </p>
 
 ---
@@ -63,27 +65,26 @@ O Dinna é um app de pedidos feitos **dentro do restaurante** (não é delivery)
 
 <a id="estado-atual"></a>
 
-## 01 · Estado atual
+## 01 · Funcionalidades
 
-Fundação (R0) **em andamento**. Health, SQLite, seed de cardápio e CRUD de `/products` estão prontos. O módulo de pedidos permite criar, consultar e atualizar pedidos. `POST /ai/recommendation` sugere até três pratos do cardápio, com fallback determinístico se o Gemini não responder.
+Legenda: ✅ implementado e coberto por testes automatizados · ⬜ planejado ou fora do escopo.
 
-| Item                                                                                  | Situação                                       |
-| ------------------------------------------------------------------------------------- | ---------------------------------------------- |
-| Servidor Fastify + TypeScript strict                                                  | ✅ Implementado                                |
-| `GET /health`                                                                         | ✅ Implementado e testado                      |
-| Formato único de erro (400 / 404 / `AppError` / 500)                                  | ✅ Implementado e testado                      |
-| Validação de entrada com JSON Schema nativo do Fastify                                | ✅ Em uso nas rotas de produtos                |
-| Variáveis de ambiente (`HOST`, `PORT`, `LOG_LEVEL`, `DATABASE_PATH`, Gemini opcional) | ✅ Implementado e testado                      |
-| Lint, format, typecheck, testes, build, CI                                            | ✅ 63 testes · GitHub Actions                  |
-| `/products` (CRUD + filtros)                                                          | ✅ Implementado e testado (SCRUM-25)           |
-| Persistência SQLite (`node:sqlite`) + seed                                            | ✅ Implementado                                |
-| `POST /orders`                                                                        | ✅ Implementado (SCRUM-45, SCRUM-89, SCRUM-90) |
-| `GET /orders`                                                                         | ✅ Implementado e testado (SCRUM-47)           |
-| `GET /orders/:id`                                                                     | ✅ Implementado e testado                      |
-| `PATCH /orders/:id/status`                                                            | ✅ Implementado e testado (SCRUM-53)           |
-| `/ai/recommendation`                                                                  | ✅ Implementado (SCRUM-62)                     |
-| Token de acesso compartilhado para o ambiente hospedado                               | ✅ Implementado e testado (opcional)           |
-| Autenticação de usuário                                                               | ⬜ Fora do escopo atual                        |
+| Funcionalidade                                                                    | Situação                                                                                                                                  |
+| --------------------------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------- |
+| Servidor Fastify + TypeScript strict                                              | ✅ Implementado                                                                                                                           |
+| `GET /health`                                                                     | ✅ Implementado                                                                                                                           |
+| Formato único de erro (400 / 401 / 404 / `AppError` / 500)                        | ✅ Implementado                                                                                                                           |
+| Validação de entrada com JSON Schema nativo do Fastify                            | ✅ Implementado                                                                                                                           |
+| Persistência SQLite (`node:sqlite`) + seed de cardápio                            | ✅ Implementado                                                                                                                           |
+| `/products`: CRUD, filtros e desativação (soft-delete)                            | ✅ Implementado                                                                                                                           |
+| `POST /orders` com total calculado, `Idempotency-Key` e número público sequencial | ✅ Implementado                                                                                                                           |
+| `GET /orders`, `GET /orders/:id` e `PATCH /orders/:id/status`                     | ✅ Implementado                                                                                                                           |
+| `POST /ai/recommendation` com seleção pelo cardápio e fallback determinístico     | ✅ Implementado                                                                                                                           |
+| Escolha dos pratos pelo Gemini                                                    | ✅ Validada com o provedor real. Opcional: depende de `GEMINI_API_KEY`; sem chave, com timeout ou falha do provedor, a API usa o fallback |
+| Proteção opcional por token (`X-Dinna-Api-Token`) para ambiente hospedado         | ✅ Implementado                                                                                                                           |
+| Autenticação de usuário                                                           | ⬜ Fora do escopo do MVP                                                                                                                  |
+
+Todas as rotas são consumidas pelo [app Flutter](https://github.com/jeancarlosaps/dinna-flutter).
 
 ---
 
@@ -137,7 +138,7 @@ flowchart LR
 | [`src/modules/orders/orders.routes.ts`](src/modules/orders/orders.routes.ts)         | Criação, consulta e atualização de pedidos                                          |
 | [`src/modules/recommendations/`](src/modules/recommendations/)                       | `POST /ai/recommendation`: seleção, Gemini opcional e fallback                      |
 
-### Estrutura real
+### Estrutura
 
 ```text
 src/
@@ -170,21 +171,29 @@ src/
 │       └── recommendations.routes.ts
 └── shared/
     ├── errors/app-error.ts
-    └── http/error-handler.ts
+    └── http/
+        ├── api-token.ts     # proteção opcional por X-Dinna-Api-Token
+        └── error-handler.ts
 tests/
-├── helpers/
-│   └── create-order-worker.ts
+├── helpers/                 # workers para concorrência e reabertura do banco
+├── api-token.test.ts
+├── demo-ingredients.test.ts
 ├── env.test.ts
 ├── error-handler.test.ts
+├── gemini-provider.test.ts
 ├── health.test.ts
 ├── orders.test.ts
 ├── orders-idempotency.test.ts
+├── orders-legacy-replay.test.ts
+├── orders-number.test.ts
 ├── products.test.ts
-├── recommendations.test.ts
+├── products-migration.test.ts
 ├── recommendation-selection.test.ts
-└── gemini-provider.test.ts
+└── recommendations.test.ts
 docs/
-├── api-contract.md          # contrato REST aceito (SCRUM-24)
+├── api-contract.md          # contrato REST aceito
+├── ai-recommendation-design.md  # desenho da recomendação
+├── deploy.md                # deploy no Railway
 └── assets/readme/           # ilustrações deste README
 ```
 
@@ -208,7 +217,7 @@ docs/
 ### Instalação
 
 ```bash
-git clone git@github.com:jeancarlosaps/dinna-api.git
+git clone https://github.com/jeancarlosaps/dinna-api.git
 cd dinna-api
 npm install
 cp .env.example .env
@@ -228,7 +237,7 @@ cp .env.example .env
 | `DINNA_REQUIRE_API_TOKEN` | desligado           | `true` ou `1` exige `X-Dinna-Api-Token` em todas as rotas, menos `GET /health`       |
 | `DINNA_API_TOKEN`         | ausente             | Token da proteção. Só com `DINNA_REQUIRE_API_TOKEN=true`. Mínimo 32 caracteres       |
 
-Valores inválidos de `HOST`, `PORT`, `LOG_LEVEL`, `DATABASE_PATH` e `GEMINI_TIMEOUT_MS` fazem a API falhar ao iniciar, com mensagem explícita. O mesmo vale para a proteção por token: ligada sem token válido, ou token definido sem ligar a proteção. Localmente não defina nenhuma das duas; a API fica aberta como antes. O uso no ambiente hospedado está em [`docs/deploy.md`](docs/deploy.md#proteção-por-token). `GEMINI_API_KEY` ausente ou em branco não impede a subida: a recomendação usa o fallback. O `.env` **nunca** é versionado; só o `.env.example`.
+Valores inválidos de `HOST`, `PORT`, `LOG_LEVEL`, `DATABASE_PATH` e `GEMINI_TIMEOUT_MS` fazem a API falhar ao iniciar, com mensagem explícita. O mesmo vale para a proteção por token: ligada sem token válido, ou token definido sem ligar a proteção. Localmente não defina nenhuma das duas; a API fica aberta. O uso no ambiente hospedado está em [`docs/deploy.md`](docs/deploy.md#proteção-por-token). `GEMINI_API_KEY` ausente ou em branco não impede a subida: a recomendação usa o fallback. O `.env` **nunca** é versionado; só o `.env.example`.
 
 ### Execução local
 
@@ -289,11 +298,13 @@ curl http://localhost:3333/nao-existe
 { "error": { "code": "NOT_FOUND", "message": "Rota GET /nao-existe não encontrada" } }
 ```
 
+<a id="recomendacao-de-pratos"></a>
+
 ### Recomendação de pratos
 
-`POST /ai/recommendation` lê o cardápio uma vez e devolve até três pratos. Sem `GEMINI_API_KEY`, a API não chama a rede: o fallback determinístico responde na hora. A assinatura Gemini Student não é crédito desta API. A chave, se existir, fica só no processo do backend.
+`POST /ai/recommendation` lê o cardápio uma vez e devolve até três pratos. Sem `GEMINI_API_KEY`, a API não chama a rede: o fallback determinístico responde na hora. A chave, se existir, fica só no processo do backend.
 
-O modelo usado é `gemini-3.6-flash`, com saída estruturada, conforme a [documentação de structured output](https://ai.google.dev/gemini-api/docs/generate-content/structured-output). A chave é enviada no header `x-goog-api-key`, nunca na URL, no log ou no Flutter. Gere uma em [Google AI Studio](https://aistudio.google.com/apikey) e coloque em `.env`:
+O modelo usado é `gemini-3.5-flash-lite`, com saída estruturada, conforme a [documentação de structured output](https://aistudio.google.com/docs/structured-output). Ele foi escolhido pela latência: a chamada precisa terminar dentro de `GEMINI_TIMEOUT_MS` (8 s por padrão), abaixo do timeout de 10 s do app. A chave é enviada no header `x-goog-api-key`, nunca na URL, no log ou no Flutter. Gere uma em [Google AI Studio](https://aistudio.google.com/apikey) e coloque em `.env`:
 
 ```bash
 GEMINI_API_KEY=sua-chave
@@ -323,6 +334,12 @@ curl -s http://localhost:3333/ai/recommendation \
 }
 ```
 
+O campo `provider` diz quem montou a lista, e o app usa esse campo para não confundir os dois caminhos:
+
+- `answered`: o Gemini escolheu os ids, e a API aceitou só os que estão no conjunto elegível do cardápio. É o único valor que indica uma escolha feita pelo provedor externo.
+- `unavailable`: o Gemini não foi chamado (sem chave) ou não serviu (timeout, rede, JSON inválido, nenhum id aproveitável). A lista vem do **fallback determinístico**, por regras de orçamento, proteína, sabor, fome e restrições. Não é texto gerado por IA: o motivo é montado a partir das respostas, e o app avisa que “A Dinna não respondeu agora”.
+- `not_called`: nenhum prato elegível, então não há o que pedir ao provedor.
+
 Os quatro resultados **200** possíveis:
 
 | Como ver                                                                                                       | `provider`    | `outcome`                |
@@ -337,7 +354,7 @@ Os quatro resultados **200** possíveis:
 
 A lista de ingredientes é informativa. A API não afirma ausência de alergênico nem preparo livre de contaminação cruzada. `no_onion` só tira o que cita cebola e o que não tem lista cadastrada; o motivo diz “sem cebola na lista cadastrada”, não que o preparo esteja livre de cebola. Sem atributo alimentar confiável, restrição crítica não gera sugestão. A pessoa confirma com a equipe: “Tem alergia? Confirme os ingredientes com a equipe antes de pedir.”
 
-A validação dos ids do provedor e o fallback quando a chamada não serve já estão nesta rota, no mesmo conjunto elegível. Não há texto livre nem segunda rota. Uma versão futura pode interpretar uma frase e produzir este mesmo objeto; isso não faz parte desta entrega.
+A validação dos ids do provedor e o fallback quando a chamada não serve já estão nesta rota, no mesmo conjunto elegível. Não há texto livre nem segunda rota. Uma versão futura pode interpretar uma frase e produzir este mesmo objeto; isso não faz parte do MVP.
 
 ---
 
@@ -361,7 +378,7 @@ A validação dos ids do provedor e o fallback quando a chamada não serve já e
 | `PATCH`  | `/orders/:id/status` | R1      | **Implementado** |
 | `POST`   | `/ai/recommendation` | R2      | **Implementado** |
 
-Payloads, status e convenções estão em [`docs/api-contract.md`](docs/api-contract.md). O contrato foi **aceito** na **SCRUM-24** e é a fonte de verdade entre esta API e o app Flutter. `POST /orders` aceita o header opcional `Idempotency-Key` (SCRUM-89). Sem ele, cada chamada continua criando um pedido novo. Com a chave, a retenção é permanente (SCRUM-90): a mesma chave e o mesmo payload devolvem o snapshot original, qualquer que seja a idade da chave.
+Payloads, status e convenções estão em [`docs/api-contract.md`](docs/api-contract.md). O contrato é a fonte de verdade entre esta API e o app Flutter. `POST /orders` aceita o header opcional `Idempotency-Key`. Sem ele, cada chamada continua criando um pedido novo. Com a chave, a retenção é permanente: a mesma chave e o mesmo payload devolvem o snapshot original, qualquer que seja a idade da chave.
 
 ### Convenções de erro
 
@@ -379,20 +396,23 @@ Todas as respostas de erro usam o mesmo formato:
 | 4xx  | definido no `AppError` | Regra de negócio (ex.: 409 em conflito)                        |
 | 500  | `INTERNAL_ERROR`       | Erro inesperado; o detalhe vai só para o log                   |
 
+<a id="banco-de-dados"></a>
+
 ## 06 · Banco de dados
 
-**Decisão (SCRUM-25):** `node:sqlite` (módulo nativo do Node.js 24). Sem `better-sqlite3`, sem ORM.
+`node:sqlite` (módulo nativo do Node.js 24). Sem `better-sqlite3`, sem ORM.
 
 - Arquivo padrão: `data/dinna.sqlite` (criado na primeira subida; pasta no `.gitignore`).
 - Testes: `:memory:` via `buildApp()` — isolados e sem arquivo em disco.
-- Schema: tabelas `products`, `orders`, `order_items` e `idempotency_keys`. A chave de idempotência referencia o pedido, guarda o fingerprint e o JSON original, e não expira. Nenhum caminho da API apaga essa linha. Ela sobrevive a reinícios do processo.
-- Limite da garantia: ela depende da preservação contínua da linha da chave no SQLite. Enquanto a linha existir, a mesma chave não cria outro pedido. Uma chave apagada por uma versão anterior não é reconstruída. Um novo `POST` com essa chave ausente segue o caminho de uma intenção nova: um payload aceito cria outro pedido, mesmo que o pedido original permaneça no banco. `INSERT OR IGNORE` não entra na recuperação.
-- Crescimento: na ordem de 1 a 2 KB por chave no pedido de exemplo. Cerca de 200 criações por dia ficam em torno de 100 MB por ano; cerca de 2 000 por dia, em torno de 1 GB por ano, e o backup acompanha. Não há expurgo.
-- Rollback floor: depois desta versão, não voltar a publicar um binário que execute `DELETE` em `idempotency_keys`. Restaurar o arquivo SQLite é outra operação e não autoriza esse binário. Um backup anterior ao corte pode já não ter chaves; um backup posterior só é seguro com o binário que não purga.
+- Schema: tabelas `products`, `orders`, `order_items`, `idempotency_keys` e `order_number_sequence`.
+- Migrações: rodam na abertura do banco e são aditivas; um banco criado por versão anterior é atualizado sem perder dados.
+- Cuidados com dados: preserve o arquivo SQLite e seus backups. A idempotência de `POST /orders` depende das linhas de `idempotency_keys`, que nunca são apagadas.
 - Seed: 12 produtos (`p1`–`p12`) em [`src/db/seed.ts`](src/db/seed.ts) quando a tabela está vazia. Ingredientes ilustrativos de um arquivo já existente entram com `npm run demo:ingredients -- --apply`, sem apagar o SQLite.
-- Status experimental do Node: a API sobe com um `ExperimentalWarning` do runtime; aceitável no MVP acadêmico.
+- Status experimental do Node: a API sobe com um `ExperimentalWarning` do runtime; aceitável no MVP.
 
-> Não confunda com a **persistência local do app Flutter** (carrinho, preferências, último pedido), que é a SCRUM-27. São responsabilidades diferentes.
+Garantias de idempotência, crescimento, rollback e migrações em detalhe: [`docs/database.md`](docs/database.md).
+
+> Não confunda com a **persistência local do app Flutter** (carrinho, preferências, último pedido). São responsabilidades diferentes.
 
 ---
 
@@ -422,10 +442,15 @@ O que os testes cobrem:
 | `tests/recommendation-selection.test.ts` | Faixas, ordenação, tokens, restrição crítica e motivo                                                             |
 | `tests/recommendations.test.ts`          | Contrato HTTP, seed, fallback, ids do provedor e ausência de escrita no banco                                     |
 | `tests/gemini-provider.test.ts`          | `fetch` fake: timeout, rede, JSON inválido e corpo sem mesa nem chave                                             |
+| `tests/api-token.test.ts`                | Proteção por token desligada por padrão, configuração inválida, 401 sem header e `/health` aberto                 |
+| `tests/orders-number.test.ts`            | Número público sequencial e o mesmo número em `GET`, listagem e `PATCH`                                           |
+| `tests/orders-legacy-replay.test.ts`     | Replay de pedidos anteriores ao snapshot sem alterar o registro                                                   |
+| `tests/products-migration.test.ts`       | Migração de `ingredients` em banco existente, reabertura e concorrência                                           |
+| `tests/demo-ingredients.test.ts`         | Ingredientes de demonstração: banco novo, banco existente e reaplicação                                           |
 
 ## 08 · CI
 
-O workflow [`.github/workflows/ci.yml`](.github/workflows/ci.yml) roda em todo push na `main` e em todo pull request:
+O workflow [`.github/workflows/ci.yml`](.github/workflows/ci.yml) roda em todo pull request (para `dev` ou `main`) e em todo push na `main`:
 
 ```text
 checkout → Node (versão do .nvmrc) → npm ci → format:check → lint → typecheck → test → build
@@ -443,54 +468,73 @@ O app aponta para esta API pela variável `API_BASE_URL` (veja o [README do app]
 | Android Emulator   | `http://10.0.2.2:3333`                   |
 | Dispositivo físico | `http://<IP-do-computador-na-rede>:3333` |
 
-Hoje o app chama `GET /health` na tela inicial (**“Verificar conexão com a API”**) e lê o formato de erro no `ApiClient`. O cardápio via `GET /products` já está disponível nesta API para a próxima integração no Flutter.
+O app consome todas as rotas desta API: `GET /health` na tela inicial, `/products` no cardápio do cliente e na gestão de produtos do restaurante, `/orders` no envio, na fila, no detalhe e no acompanhamento, `PATCH /orders/:id/status` no avanço do preparo e `POST /ai/recommendation` no “Me ajuda a escolher”. O formato de erro é lido no `ApiClient`.
 
 <a id="roadmap"></a>
 
 ## 10 · Roadmap
 
 <p align="center">
-  <img src="docs/assets/readme/roadmap.svg" alt="Roadmap. R0 Fundação, em andamento: app Flutter com MVVM base, API Fastify com /health, CI, contrato, SQLite e /products. Pedidos no R1. R1 MVP Operacional, planejado. R2 Dinna, Me ajuda a escolher, planejado. R3 Evoluções, icebox." width="1600" loading="lazy" />
+  <img src="docs/assets/readme/roadmap.svg" alt="Roadmap do Dinna. R0 Fundação entregue. R1 MVP Operacional funcional, com a rota /product provisória. R2 Dinna implementada: Me ajuda a escolher, preferências salvas, escolha pelo Gemini com chave opcional e fallback determinístico. R3 Evoluções planejada." width="1600" loading="lazy" />
 </p>
 
-Issues de API acompanhadas neste repositório. **Jira** foi consultado em 26/10/2026; **Código** reflete esta branch.
+A ilustração e a tabela mostram a situação atual:
 
-| Issue    | Task                                          | Jira         | Código                                                       |
-| -------- | --------------------------------------------- | ------------ | ------------------------------------------------------------ |
-| SCRUM-24 | Definir o contrato inicial da API REST        | Concluído    | Contrato aceito em `docs/api-contract.md`                    |
-| SCRUM-25 | Preparar backend/mock da API                  | Concluído    | SQLite + seed + CRUD `/products`; schema de pedidos          |
-| SCRUM-45 | Criar pedido (`POST /orders`)                 | Concluído    | Rota com validação, total calculado e persistência atômica   |
-| SCRUM-47 | Consultar pedidos (`GET /orders`)             | Concluído    | Filtros por status e mesa, fila crescente e itens associados |
-| SCRUM-53 | Atualizar status (`PATCH /orders/:id/status`) | Em andamento | Avanço de um passo e resposta com pedido atualizado          |
+| Release                        | Escopo na API                                                     | Situação                                                                                    |
+| ------------------------------ | ----------------------------------------------------------------- | ------------------------------------------------------------------------------------------- |
+| **R0 · Fundação**              | Fastify, contrato REST, SQLite, seed e CRUD `/products`           | ✅ Implementada                                                                             |
+| **R1 · MVP operacional**       | Criar, consultar e avançar pedidos, idempotência e número público | ✅ MVP funcional                                                                            |
+| **R2 · “Me ajuda a escolher”** | `POST /ai/recommendation` com seleção pelo cardápio               | ✅ Implementada; escolha pelo Gemini validada com o provedor real e fallback determinístico |
+| **R3 · Evoluções**             | Melhorias futuras                                                 | ⬜ Planejada                                                                                |
+
+Pendências técnicas conhecidas:
+
+- não há URL pública documentada para a API hospedada; o guia de publicação está em [`docs/deploy.md`](docs/deploy.md);
+- a configuração de `GEMINI_API_KEY` no ambiente hospedado.
 
 ## 11 · Como contribuir
 
 O fluxo completo está em [CONTRIBUTING.md](CONTRIBUTING.md). Em resumo:
 
+| Branch                                    | Papel                                                                 |
+| ----------------------------------------- | --------------------------------------------------------------------- |
+| `main`                                    | Versão estável e integrada; recebe a `dev` por pull request           |
+| `dev`                                     | Integração contínua das funcionalidades; destino dos PRs do dia a dia |
+| `feature/…`, `fix/…`, `chore/…`, `docs/…` | Trabalho de uma issue; nasce da `dev` e volta para a `dev` por PR     |
+
 1. Pegue uma issue no [Jira (SCRUM)](https://jeancarlosaps.atlassian.net/jira/software/projects/SCRUM/boards/1).
-2. Crie a branch a partir da `main`: `feature/SCRUM-<n>-descricao`, `fix/SCRUM-<n>-descricao` ou `chore/SCRUM-<n>-descricao`.
-3. Valide antes do PR: `npm run format:check && npm run lint && npm run typecheck && npm test`.
-4. Abra o PR usando o [template](.github/pull_request_template.md), com a CI verde e a revisão de outro integrante.
+2. Crie a branch a partir da `dev`: `feature/SCRUM-<n>-descricao`, `fix/SCRUM-<n>-descricao`, `chore/SCRUM-<n>-descricao` ou `docs/<descricao>`.
+3. Valide antes do PR: `npm run format:check && npm run lint && npm run typecheck && npm test && npm run build`.
+4. Abra o PR para a `dev` usando o [template](.github/pull_request_template.md), com a CI verde e a revisão de outro integrante.
+5. A `dev` é promovida para a `main` por PR depois de validada.
 
 ## 12 · Equipe
 
-| Integrante    | Foco planejado no backlog                                    |
-| ------------- | ------------------------------------------------------------ |
-| Jean Carlos   | Arquitetura e fundação, QA de arquitetura                    |
-| Felipe Souza  | Contrato REST, backend/mock da API e operação do restaurante |
-| Gabriel Abreu | Experiência do cliente e estrutura visual                    |
-| João Victor   | Persistência e evoluções                                     |
+| Integrante             | Responsabilidades                                   |
+| ---------------------- | --------------------------------------------------- |
+| Jean Carlos            | Arquitetura, coordenação técnica e integração       |
+| Gabriel Abreu          | Fluxos do cliente, recomendação e QA                |
+| Felipe Souza           | Operação do restaurante, produtos e integração REST |
+| João Victor Dias Ramos | Carrinho e persistência                             |
 
-Os focos vêm da distribuição de issues no backlog (Atividade 2) e não são cargos formais.
+O trabalho é colaborativo: as responsabilidades indicam o foco de cada integrante, não cargos formais.
 
-## 13 · Próximos passos
+<a id="documentacao-do-projeto"></a>
 
-1. A rota `POST /ai/recommendation` está na API. O formulário no Flutter segue na entrega do app.
-2. Sincronizar o `roadmap.svg` no [dinna-flutter](https://github.com/jeancarlosaps/dinna-flutter) se o status R0 mudar lá também.
+## 13 · Documentação do projeto
+
+| Documento                                                                                                          | Conteúdo                                                                                                                         | Acesso               |
+| ------------------------------------------------------------------------------------------------------------------ | -------------------------------------------------------------------------------------------------------------------------------- | -------------------- |
+| [Contrato REST](docs/api-contract.md)                                                                              | Endpoints, payloads e erros                                                                                                      | Público              |
+| [Desenho da recomendação](docs/ai-recommendation-design.md)                                                        | Seleção pelo cardápio, provedor opcional e fallback                                                                              | Público              |
+| [Banco de dados](docs/database.md)                                                                                 | Idempotência, crescimento, rollback e migrações                                                                                  | Público              |
+| [Deploy](docs/deploy.md)                                                                                           | Publicação da API com SQLite em volume                                                                                           | Público              |
+| [Documentação de Gestão do Projeto](https://jeancarlosaps.atlassian.net/wiki/spaces/DD/pages/9142274) (Confluence) | Planejamento, backlog, story maps, roadmap, matriz de riscos, sprints com burndowns, reviews, retrospectivas e lições aprendidas | Mediante autorização |
+| [Jira (SCRUM)](https://jeancarlosaps.atlassian.net/jira/software/projects/SCRUM/boards/1)                          | Backlog e acompanhamento das issues                                                                                              | Mediante autorização |
 
 ## 14 · Links
 
-- Jira (SCRUM): <https://jeancarlosaps.atlassian.net/jira/software/projects/SCRUM/boards/1>
+- Documentação de Gestão do Projeto (Confluence, acesso mediante autorização): <https://jeancarlosaps.atlassian.net/wiki/spaces/DD/pages/9142274>
 - Figma: <https://www.figma.com/design/xYeeN6UBmj3lF458GF9qwA/Dinna-%C2%B7-App-Cliente?node-id=0-1>
 - Aplicativo Flutter do Dinna: <https://github.com/jeancarlosaps/dinna-flutter>
 - Contrato REST: [docs/api-contract.md](docs/api-contract.md)
