@@ -1,6 +1,6 @@
 <svg xmlns="http://www.w3.org/2000/svg" width="1600" height="610" viewBox="0 0 1600 610" role="img" aria-labelledby="title desc">
   <title id="title">Roadmap do Dinna por releases</title>
-  <desc id="desc">R0 Fundação, entregue: app Flutter com MVVM, API Fastify com SQLite, contrato REST, models e CI. R1 MVP Operacional, MVP funcional: mesa, cardápio, busca, carrinho, pedido, status, fila, preparo e produtos; a rota /product ainda é provisória. R2 Dinna, com ressalva: Me ajuda a escolher, preferências salvas e fallback determinístico implementados; a escolha pelo Gemini depende de chave configurada no backend. R3 Evoluções, planejado: QR Code da mesa, geolocalização, favoritos e dashboard.</desc>
+  <desc id="desc">R0 Fundação, entregue: app Flutter com MVVM, API Fastify com SQLite, contrato REST, models e CI. R1 MVP Operacional, MVP funcional: mesa, cardápio, busca, carrinho, pedido, status, fila, preparo e produtos; a rota /product ainda é provisória. R2 Dinna, implementado: Me ajuda a escolher, preferências salvas, escolha pelo Gemini com chave opcional e fallback determinístico. R3 Evoluções, planejado: QR Code da mesa, geolocalização, favoritos e dashboard.</desc>
   <defs>
     <linearGradient id="bg" x1="0" y1="0" x2="1" y2="1"><stop stop-color="#FBF6F0"/><stop offset="1" stop-color="#F3E8DC"/></linearGradient>
     <pattern id="dots" width="46" height="42" patternUnits="userSpaceOnUse"><circle cx="5" cy="6" r="1.1" fill="#2A211C" opacity="0.06"/><circle cx="29" cy="23" r="0.9" fill="#2A211C" opacity="0.042"/><circle cx="16" cy="37" r="0.8" fill="#2A211C" opacity="0.048"/></pattern>
@@ -16,7 +16,7 @@
   <text x="72" y="126" font-family="'Iowan Old Style', Charter, 'Palatino Linotype', Georgia, serif" font-size="38" font-style="italic" fill="#2A211C">Do preparo ao prato da casa.</text>
   <path d="M112 164 H1243" stroke="#E6DAD0" stroke-width="3" stroke-linecap="round"/>
   <path d="M112 164 H866" stroke="#5E7355" stroke-width="3" stroke-linecap="round"/>
-  <path d="M866 164 H1036" stroke="#A86B12" stroke-width="3" stroke-linecap="round"/>
+  <path d="M866 164 H1036" stroke="#5E7355" stroke-width="3" stroke-linecap="round"/>
   <circle cx="112" cy="164" r="9" fill="#5E7355" stroke="#5E7355" stroke-width="3"/>
   <rect x="72" y="188" width="349" height="330" rx="24" fill="#FFFFFF" filter="url(#sh)"/>
   <rect x="72" y="188" width="349" height="330" rx="24" fill="none" stroke="#5E7355" stroke-width="2"/>
@@ -51,23 +51,23 @@
   <text x="507" y="456" font-family="'Avenir Next', Avenir, 'Helvetica Neue', 'Segoe UI', Roboto, Arial, sans-serif" font-size="18" font-weight="500" fill="#2A211C">fila, preparo e produtos</text>
   <circle cx="487" cy="486" r="8" fill="#FFFFFF" stroke="#A86B12" stroke-width="2"/><path d="M487 478 A8 8 0 0 1 487 494 Z" fill="#A86B12"/>
   <text x="507" y="492" font-family="'Avenir Next', Avenir, 'Helvetica Neue', 'Segoe UI', Roboto, Arial, sans-serif" font-size="18" font-weight="500" fill="#2A211C">rota /product provisória</text>
-  <circle cx="866" cy="164" r="9" fill="#A86B12" stroke="#A86B12" stroke-width="3"/>
+  <circle cx="866" cy="164" r="9" fill="#5E7355" stroke="#5E7355" stroke-width="3"/>
   <rect x="826" y="188" width="349" height="330" rx="24" fill="#FFFFFF" filter="url(#sh)"/>
-  <rect x="826" y="188" width="349" height="330" rx="24" fill="none" stroke="#A86B12" stroke-width="2"/>
+  <rect x="826" y="188" width="349" height="330" rx="24" fill="none" stroke="#5E7355" stroke-width="2"/>
   <text x="854" y="258" font-family="'Iowan Old Style', Charter, 'Palatino Linotype', Georgia, serif" font-size="52" font-weight="700" fill="#B4532A">R2</text>
   <text x="854" y="298" font-family="'Avenir Next', Avenir, 'Helvetica Neue', 'Segoe UI', Roboto, Arial, sans-serif" font-size="25" font-weight="700" fill="#2A211C">Dinna</text>
   <text x="854" y="326" font-family="'Iowan Old Style', Charter, 'Palatino Linotype', Georgia, serif" font-size="19" font-style="italic" fill="#6F625A">prato da casa</text>
-  <rect x="992" y="222" width="155" height="30" rx="15" fill="#F6EAD2"/>
-  <text x="1069.5" y="242" text-anchor="middle" font-family="'Avenir Next', Avenir, 'Helvetica Neue', 'Segoe UI', Roboto, Arial, sans-serif" font-size="13" font-weight="700" letter-spacing="1.5" fill="#A86B12">COM RESSALVA</text>
+  <rect x="992" y="222" width="155" height="30" rx="15" fill="#E3EADF"/>
+  <text x="1069.5" y="242" text-anchor="middle" font-family="'Avenir Next', Avenir, 'Helvetica Neue', 'Segoe UI', Roboto, Arial, sans-serif" font-size="13" font-weight="700" letter-spacing="1.5" fill="#5E7355">IMPLEMENTADO</text>
   <path d="M854 348 H1147" stroke="#E6DAD0" stroke-width="1.5"/>
   <circle cx="864" cy="378" r="9" fill="#5E7355"/><path d="M859 378 l3.5 3.5 l6 -7" stroke="#FFFFFF" stroke-width="2.2" fill="none" stroke-linecap="round" stroke-linejoin="round"/>
   <text x="884" y="384" font-family="'Avenir Next', Avenir, 'Helvetica Neue', 'Segoe UI', Roboto, Arial, sans-serif" font-size="18" font-weight="500" fill="#2A211C">“Me ajuda a escolher”</text>
   <circle cx="864" cy="414" r="9" fill="#5E7355"/><path d="M859 414 l3.5 3.5 l6 -7" stroke="#FFFFFF" stroke-width="2.2" fill="none" stroke-linecap="round" stroke-linejoin="round"/>
   <text x="884" y="420" font-family="'Avenir Next', Avenir, 'Helvetica Neue', 'Segoe UI', Roboto, Arial, sans-serif" font-size="18" font-weight="500" fill="#2A211C">preferências salvas</text>
   <circle cx="864" cy="450" r="9" fill="#5E7355"/><path d="M859 450 l3.5 3.5 l6 -7" stroke="#FFFFFF" stroke-width="2.2" fill="none" stroke-linecap="round" stroke-linejoin="round"/>
-  <text x="884" y="456" font-family="'Avenir Next', Avenir, 'Helvetica Neue', 'Segoe UI', Roboto, Arial, sans-serif" font-size="18" font-weight="500" fill="#2A211C">fallback determinístico</text>
-  <circle cx="864" cy="486" r="8" fill="#FFFFFF" stroke="#A86B12" stroke-width="2"/><path d="M864 478 A8 8 0 0 1 864 494 Z" fill="#A86B12"/>
-  <text x="884" y="492" font-family="'Avenir Next', Avenir, 'Helvetica Neue', 'Segoe UI', Roboto, Arial, sans-serif" font-size="18" font-weight="500" fill="#2A211C">Gemini depende de chave</text>
+  <text x="884" y="456" font-family="'Avenir Next', Avenir, 'Helvetica Neue', 'Segoe UI', Roboto, Arial, sans-serif" font-size="18" font-weight="500" fill="#2A211C">Gemini com chave opcional</text>
+  <circle cx="864" cy="486" r="9" fill="#5E7355"/><path d="M859 486 l3.5 3.5 l6 -7" stroke="#FFFFFF" stroke-width="2.2" fill="none" stroke-linecap="round" stroke-linejoin="round"/>
+  <text x="884" y="492" font-family="'Avenir Next', Avenir, 'Helvetica Neue', 'Segoe UI', Roboto, Arial, sans-serif" font-size="18" font-weight="500" fill="#2A211C">fallback determinístico</text>
   <circle cx="1243" cy="164" r="9" fill="#FFFFFF" stroke="#E6DAD0" stroke-width="3"/>
   <rect x="1203" y="188" width="349" height="330" rx="24" fill="#FFFFFF" filter="url(#sh)"/>
   <rect x="1203" y="188" width="349" height="330" rx="24" fill="none" stroke="#E6DAD0" stroke-width="1.5"/>

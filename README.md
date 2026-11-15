@@ -67,22 +67,22 @@ O Dinna é um app de pedidos feitos **dentro do restaurante** (não é delivery)
 
 ## 01 · Funcionalidades
 
-Legenda: ✅ implementado e coberto por testes automatizados · 🟡 implementado com ressalva · ⬜ planejado ou fora do escopo.
+Legenda: ✅ implementado e coberto por testes automatizados · ⬜ planejado ou fora do escopo.
 
-| Funcionalidade                                                                    | Situação                                                                                                                                                                                                         |
-| --------------------------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| Servidor Fastify + TypeScript strict                                              | ✅ Implementado                                                                                                                                                                                                  |
-| `GET /health`                                                                     | ✅ Implementado                                                                                                                                                                                                  |
-| Formato único de erro (400 / 401 / 404 / `AppError` / 500)                        | ✅ Implementado                                                                                                                                                                                                  |
-| Validação de entrada com JSON Schema nativo do Fastify                            | ✅ Implementado                                                                                                                                                                                                  |
-| Persistência SQLite (`node:sqlite`) + seed de cardápio                            | ✅ Implementado                                                                                                                                                                                                  |
-| `/products`: CRUD, filtros e desativação (soft-delete)                            | ✅ Implementado                                                                                                                                                                                                  |
-| `POST /orders` com total calculado, `Idempotency-Key` e número público sequencial | ✅ Implementado                                                                                                                                                                                                  |
-| `GET /orders`, `GET /orders/:id` e `PATCH /orders/:id/status`                     | ✅ Implementado                                                                                                                                                                                                  |
-| `POST /ai/recommendation` com seleção pelo cardápio e fallback determinístico     | ✅ Implementado                                                                                                                                                                                                  |
-| Escolha dos pratos pelo Gemini                                                    | 🟡 Opcional, depende de `GEMINI_API_KEY`. Coberto por testes com provedor simulado; uma resposta real com chave válida ainda não foi validada. Sem chave, com timeout ou falha do provedor, a API usa o fallback |
-| Proteção opcional por token (`X-Dinna-Api-Token`) para ambiente hospedado         | ✅ Implementado                                                                                                                                                                                                  |
-| Autenticação de usuário                                                           | ⬜ Fora do escopo do MVP                                                                                                                                                                                         |
+| Funcionalidade                                                                    | Situação                                                                                                                                  |
+| --------------------------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------- |
+| Servidor Fastify + TypeScript strict                                              | ✅ Implementado                                                                                                                           |
+| `GET /health`                                                                     | ✅ Implementado                                                                                                                           |
+| Formato único de erro (400 / 401 / 404 / `AppError` / 500)                        | ✅ Implementado                                                                                                                           |
+| Validação de entrada com JSON Schema nativo do Fastify                            | ✅ Implementado                                                                                                                           |
+| Persistência SQLite (`node:sqlite`) + seed de cardápio                            | ✅ Implementado                                                                                                                           |
+| `/products`: CRUD, filtros e desativação (soft-delete)                            | ✅ Implementado                                                                                                                           |
+| `POST /orders` com total calculado, `Idempotency-Key` e número público sequencial | ✅ Implementado                                                                                                                           |
+| `GET /orders`, `GET /orders/:id` e `PATCH /orders/:id/status`                     | ✅ Implementado                                                                                                                           |
+| `POST /ai/recommendation` com seleção pelo cardápio e fallback determinístico     | ✅ Implementado                                                                                                                           |
+| Escolha dos pratos pelo Gemini                                                    | ✅ Validada com o provedor real. Opcional: depende de `GEMINI_API_KEY`; sem chave, com timeout ou falha do provedor, a API usa o fallback |
+| Proteção opcional por token (`X-Dinna-Api-Token`) para ambiente hospedado         | ✅ Implementado                                                                                                                           |
+| Autenticação de usuário                                                           | ⬜ Fora do escopo do MVP                                                                                                                  |
 
 Todas as rotas são consumidas pelo [app Flutter](https://github.com/jeancarlosaps/dinna-flutter).
 
@@ -304,7 +304,7 @@ curl http://localhost:3333/nao-existe
 
 `POST /ai/recommendation` lê o cardápio uma vez e devolve até três pratos. Sem `GEMINI_API_KEY`, a API não chama a rede: o fallback determinístico responde na hora. A chave, se existir, fica só no processo do backend.
 
-O modelo usado é `gemini-3.6-flash`, com saída estruturada, conforme a [documentação de structured output](https://ai.google.dev/gemini-api/docs/generate-content/structured-output). A chave é enviada no header `x-goog-api-key`, nunca na URL, no log ou no Flutter. Gere uma em [Google AI Studio](https://aistudio.google.com/apikey) e coloque em `.env`:
+O modelo usado é `gemini-3.5-flash-lite`, com saída estruturada, conforme a [documentação de structured output](https://aistudio.google.com/docs/structured-output). Ele foi escolhido pela latência: a chamada precisa terminar dentro de `GEMINI_TIMEOUT_MS` (8 s por padrão), abaixo do timeout de 10 s do app. A chave é enviada no header `x-goog-api-key`, nunca na URL, no log ou no Flutter. Gere uma em [Google AI Studio](https://aistudio.google.com/apikey) e coloque em `.env`:
 
 ```bash
 GEMINI_API_KEY=sua-chave
@@ -475,17 +475,17 @@ O app consome todas as rotas desta API: `GET /health` na tela inicial, `/product
 ## 10 · Roadmap
 
 <p align="center">
-  <img src="docs/assets/readme/roadmap.svg" alt="Roadmap do Dinna. R0 Fundação entregue. R1 MVP Operacional funcional, com a rota /product provisória no app. R2 Dinna implementada com ressalva: Me ajuda a escolher, preferências e fallback prontos; o Gemini depende de chave. R3 Evoluções planejada." width="1600" loading="lazy" />
+  <img src="docs/assets/readme/roadmap.svg" alt="Roadmap do Dinna. R0 Fundação entregue. R1 MVP Operacional funcional, com a rota /product provisória. R2 Dinna implementada: Me ajuda a escolher, preferências salvas, escolha pelo Gemini com chave opcional e fallback determinístico. R3 Evoluções planejada." width="1600" loading="lazy" />
 </p>
 
 A ilustração e a tabela mostram a situação atual:
 
-| Release                        | Escopo na API                                                     | Situação                                                                                                                         |
-| ------------------------------ | ----------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------- |
-| **R0 · Fundação**              | Fastify, contrato REST, SQLite, seed e CRUD `/products`           | ✅ Implementada                                                                                                                  |
-| **R1 · MVP operacional**       | Criar, consultar e avançar pedidos, idempotência e número público | ✅ MVP funcional                                                                                                                 |
-| **R2 · “Me ajuda a escolher”** | `POST /ai/recommendation` com seleção pelo cardápio               | 🟡 Implementada com fallback determinístico; a escolha pelo Gemini depende de chave e ainda não foi validada com o provedor real |
-| **R3 · Evoluções**             | Melhorias futuras                                                 | ⬜ Planejada                                                                                                                     |
+| Release                        | Escopo na API                                                     | Situação                                                                                    |
+| ------------------------------ | ----------------------------------------------------------------- | ------------------------------------------------------------------------------------------- |
+| **R0 · Fundação**              | Fastify, contrato REST, SQLite, seed e CRUD `/products`           | ✅ Implementada                                                                             |
+| **R1 · MVP operacional**       | Criar, consultar e avançar pedidos, idempotência e número público | ✅ MVP funcional                                                                            |
+| **R2 · “Me ajuda a escolher”** | `POST /ai/recommendation` com seleção pelo cardápio               | ✅ Implementada; escolha pelo Gemini validada com o provedor real e fallback determinístico |
+| **R3 · Evoluções**             | Melhorias futuras                                                 | ⬜ Planejada                                                                                |
 
 Pendências técnicas conhecidas:
 
