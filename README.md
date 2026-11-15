@@ -11,7 +11,7 @@
 
 <p align="center">
   <strong>Da mesa à operação.</strong><br />
-  A API REST do Dinna: produtos, pedidos, status e, no futuro, recomendações, em um monólito modular simples.
+  A API REST do Dinna: produtos, pedidos, status e recomendação de pratos, em um monólito modular simples.
 </p>
 
 <p align="center">
@@ -20,6 +20,8 @@
   <a href="#estado-atual">O QUE JÁ EXISTE</a>
   &nbsp;·&nbsp;
   <a href="docs/api-contract.md">CONTRATO REST</a>
+  &nbsp;·&nbsp;
+  <a href="#documentacao-do-projeto">DOCUMENTAÇÃO</a>
   &nbsp;·&nbsp;
   <a href="#roadmap">ROADMAP</a>
   &nbsp;·&nbsp;
@@ -33,7 +35,7 @@
   <img src="https://img.shields.io/badge/Node.js-24%20LTS-5E7355?logo=nodedotjs&amp;logoColor=white" alt="Node.js 24 LTS" />
   <img src="https://img.shields.io/badge/TypeScript-6.0.3-B4532A?logo=typescript&amp;logoColor=white" alt="TypeScript 6.0.3" />
   <img src="https://img.shields.io/badge/Fastify-5.12.7-2A211C?logo=fastify&amp;logoColor=white" alt="Fastify 5.12.7" />
-  <img src="https://img.shields.io/badge/status-R0%20%C2%B7%20funda%C3%A7%C3%A3o%20em%20andamento-A86B12" alt="Status: R0, fundação em andamento" />
+  <img src="https://img.shields.io/badge/status-MVP%20R1%20%2B%20R2%20%C2%B7%20entrega%20acad%C3%AAmica-5E7355" alt="Status: MVP com R1 e R2, entrega acadêmica" />
 </p>
 
 ---
@@ -61,11 +63,19 @@ flowchart LR
 
 O Dinna é um app de pedidos feitos **dentro do restaurante** (não é delivery). O cliente escolhe e envia o pedido da mesa; o restaurante recebe, prepara e finaliza, sem perder o atendimento humano. Esta API é o ponto em que as duas pontas se encontram.
 
+<a id="documentacao-do-projeto"></a>
+
+## Documentação do projeto
+
+A gestão do Dinna está no Confluence: **[Documentação de Gestão do Projeto](https://jeancarlosaps.atlassian.net/wiki/spaces/DD/pages/9142274)**.
+
+O espaço reúne o planejamento, o backlog, os story maps, o roadmap, a matriz de riscos, o acompanhamento das sprints com burndowns, as reviews, as retrospectivas e as lições aprendidas. Este README cobre o código; o Confluence cobre o processo.
+
 <a id="estado-atual"></a>
 
 ## 01 · Estado atual
 
-Fundação (R0) **em andamento**. Health, SQLite, seed de cardápio e CRUD de `/products` estão prontos. O módulo de pedidos permite criar, consultar e atualizar pedidos. `POST /ai/recommendation` sugere até três pratos do cardápio, com fallback determinístico se o Gemini não responder.
+MVP da entrega acadêmica integrado na `dev`, cobrindo a fundação (R0), a operação de pedidos (R1) e a recomendação de pratos (R2). Health, SQLite, seed de cardápio e CRUD de `/products` estão prontos. O módulo de pedidos cria pedidos com idempotência e número público sequencial, consulta a fila e avança o status. `POST /ai/recommendation` sugere até três pratos do cardápio: com `GEMINI_API_KEY`, o Gemini escolhe dentro do conjunto elegível; sem a chave, ou se a chamada falhar, um fallback determinístico responde com `provider: "unavailable"`. Todas as rotas são consumidas pelo [app Flutter](https://github.com/jeancarlosaps/dinna-flutter).
 
 | Item                                                                                  | Situação                                       |
 | ------------------------------------------------------------------------------------- | ---------------------------------------------- |
@@ -74,14 +84,15 @@ Fundação (R0) **em andamento**. Health, SQLite, seed de cardápio e CRUD de `/
 | Formato único de erro (400 / 404 / `AppError` / 500)                                  | ✅ Implementado e testado                      |
 | Validação de entrada com JSON Schema nativo do Fastify                                | ✅ Em uso nas rotas de produtos                |
 | Variáveis de ambiente (`HOST`, `PORT`, `LOG_LEVEL`, `DATABASE_PATH`, Gemini opcional) | ✅ Implementado e testado                      |
-| Lint, format, typecheck, testes, build, CI                                            | ✅ 63 testes · GitHub Actions                  |
+| Lint, format, typecheck, testes, build, CI                                            | ✅ 162 testes · GitHub Actions                 |
 | `/products` (CRUD + filtros)                                                          | ✅ Implementado e testado (SCRUM-25)           |
 | Persistência SQLite (`node:sqlite`) + seed                                            | ✅ Implementado                                |
 | `POST /orders`                                                                        | ✅ Implementado (SCRUM-45, SCRUM-89, SCRUM-90) |
+| Número público sequencial do pedido (`orderNumber`)                                   | ✅ Implementado e testado (SCRUM-94)           |
 | `GET /orders`                                                                         | ✅ Implementado e testado (SCRUM-47)           |
 | `GET /orders/:id`                                                                     | ✅ Implementado e testado                      |
 | `PATCH /orders/:id/status`                                                            | ✅ Implementado e testado (SCRUM-53)           |
-| `/ai/recommendation`                                                                  | ✅ Implementado (SCRUM-62)                     |
+| `/ai/recommendation` (Gemini opcional + fallback determinístico)                      | ✅ Implementado e testado (SCRUM-62)           |
 | Token de acesso compartilhado para o ambiente hospedado                               | ✅ Implementado e testado (opcional)           |
 | Autenticação de usuário                                                               | ⬜ Fora do escopo atual                        |
 
@@ -170,21 +181,29 @@ src/
 │       └── recommendations.routes.ts
 └── shared/
     ├── errors/app-error.ts
-    └── http/error-handler.ts
+    └── http/
+        ├── api-token.ts     # proteção opcional por X-Dinna-Api-Token
+        └── error-handler.ts
 tests/
-├── helpers/
-│   └── create-order-worker.ts
+├── helpers/                 # workers para concorrência e reabertura do banco
+├── api-token.test.ts
+├── demo-ingredients.test.ts
 ├── env.test.ts
 ├── error-handler.test.ts
+├── gemini-provider.test.ts
 ├── health.test.ts
 ├── orders.test.ts
 ├── orders-idempotency.test.ts
+├── orders-legacy-replay.test.ts
+├── orders-number.test.ts
 ├── products.test.ts
-├── recommendations.test.ts
+├── products-migration.test.ts
 ├── recommendation-selection.test.ts
-└── gemini-provider.test.ts
+└── recommendations.test.ts
 docs/
 ├── api-contract.md          # contrato REST aceito (SCRUM-24)
+├── ai-recommendation-design.md  # desenho da recomendação (SCRUM-60)
+├── deploy.md                # deploy no Railway
 └── assets/readme/           # ilustrações deste README
 ```
 
@@ -323,6 +342,12 @@ curl -s http://localhost:3333/ai/recommendation \
 }
 ```
 
+O campo `provider` diz quem montou a lista, e o app usa esse campo para não confundir os dois caminhos:
+
+- `answered`: o Gemini escolheu os ids, e a API aceitou só os que estão no conjunto elegível do cardápio.
+- `unavailable`: o Gemini não foi chamado (sem chave) ou não serviu (timeout, rede, JSON inválido, nenhum id aproveitável). A lista vem do **fallback determinístico**, por regras de orçamento, proteína, sabor, fome e restrições. Não é texto gerado por IA: o motivo é montado a partir das respostas, e o app avisa que “A Dinna não respondeu agora”.
+- `not_called`: nenhum prato elegível, então não há o que pedir ao provedor.
+
 Os quatro resultados **200** possíveis:
 
 | Como ver                                                                                                       | `provider`    | `outcome`                |
@@ -422,6 +447,11 @@ O que os testes cobrem:
 | `tests/recommendation-selection.test.ts` | Faixas, ordenação, tokens, restrição crítica e motivo                                                             |
 | `tests/recommendations.test.ts`          | Contrato HTTP, seed, fallback, ids do provedor e ausência de escrita no banco                                     |
 | `tests/gemini-provider.test.ts`          | `fetch` fake: timeout, rede, JSON inválido e corpo sem mesa nem chave                                             |
+| `tests/api-token.test.ts`                | Proteção por token desligada por padrão, configuração inválida, 401 sem header e `/health` aberto                 |
+| `tests/orders-number.test.ts`            | Número público sequencial e o mesmo número em `GET`, listagem e `PATCH`                                           |
+| `tests/orders-legacy-replay.test.ts`     | Replay de pedidos anteriores ao snapshot sem alterar o registro                                                   |
+| `tests/products-migration.test.ts`       | Migração de `ingredients` em banco existente, reabertura e concorrência                                           |
+| `tests/demo-ingredients.test.ts`         | Ingredientes de demonstração: banco novo, banco existente e reaplicação                                           |
 
 ## 08 · CI
 
@@ -443,25 +473,24 @@ O app aponta para esta API pela variável `API_BASE_URL` (veja o [README do app]
 | Android Emulator   | `http://10.0.2.2:3333`                   |
 | Dispositivo físico | `http://<IP-do-computador-na-rede>:3333` |
 
-Hoje o app chama `GET /health` na tela inicial (**“Verificar conexão com a API”**) e lê o formato de erro no `ApiClient`. O cardápio via `GET /products` já está disponível nesta API para a próxima integração no Flutter.
+O app consome todas as rotas desta API: `GET /health` na tela inicial, `/products` no cardápio do cliente e na gestão de produtos do restaurante, `/orders` no envio, na fila, no detalhe e no acompanhamento, `PATCH /orders/:id/status` no avanço do preparo e `POST /ai/recommendation` no “Me ajuda a escolher”. O formato de erro é lido no `ApiClient`.
 
 <a id="roadmap"></a>
 
 ## 10 · Roadmap
 
 <p align="center">
-  <img src="docs/assets/readme/roadmap.svg" alt="Roadmap. R0 Fundação, em andamento: app Flutter com MVVM base, API Fastify com /health, CI, contrato, SQLite e /products. Pedidos no R1. R1 MVP Operacional, planejado. R2 Dinna, Me ajuda a escolher, planejado. R3 Evoluções, icebox." width="1600" loading="lazy" />
+  <img src="docs/assets/readme/roadmap.svg" alt="Roadmap ilustrado da R0 à R3, no desenho inicial do projeto. A situação atual de cada release está na tabela logo abaixo." width="1600" loading="lazy" />
 </p>
 
-Issues de API acompanhadas neste repositório. **Jira** foi consultado em 26/10/2026; **Código** reflete esta branch.
+A ilustração é o desenho inicial do roadmap e não acompanha o andamento. A tabela reflete o código na `dev`. O acompanhamento por sprint está no [Confluence](#documentacao-do-projeto).
 
-| Issue    | Task                                          | Jira         | Código                                                       |
-| -------- | --------------------------------------------- | ------------ | ------------------------------------------------------------ |
-| SCRUM-24 | Definir o contrato inicial da API REST        | Concluído    | Contrato aceito em `docs/api-contract.md`                    |
-| SCRUM-25 | Preparar backend/mock da API                  | Concluído    | SQLite + seed + CRUD `/products`; schema de pedidos          |
-| SCRUM-45 | Criar pedido (`POST /orders`)                 | Concluído    | Rota com validação, total calculado e persistência atômica   |
-| SCRUM-47 | Consultar pedidos (`GET /orders`)             | Concluído    | Filtros por status e mesa, fila crescente e itens associados |
-| SCRUM-53 | Atualizar status (`PATCH /orders/:id/status`) | Em andamento | Avanço de um passo e resposta com pedido atualizado          |
+| Release                        | Escopo na API                                                                                    | Situação no código                           |
+| ------------------------------ | ------------------------------------------------------------------------------------------------ | -------------------------------------------- |
+| **R0 · Fundação**              | Fastify, contrato REST (SCRUM-24), SQLite, seed e CRUD `/products` (SCRUM-25)                    | ✅ Concluída                                 |
+| **R1 · MVP operacional**       | Criar, consultar e avançar pedidos, idempotência e número público (SCRUM-45, 47, 53, 89, 90, 94) | ✅ Implementada                              |
+| **R2 · “Me ajuda a escolher”** | `POST /ai/recommendation` com seleção pelo cardápio e Gemini opcional (SCRUM-60, SCRUM-62)       | ✅ Implementada, com fallback determinístico |
+| **R3 · Evoluções**             | Melhorias futuras                                                                                | ⬜ Planejada                                 |
 
 ## 11 · Como contribuir
 
@@ -485,11 +514,13 @@ Os focos vêm da distribuição de issues no backlog (Atividade 2) e não são c
 
 ## 13 · Próximos passos
 
-1. A rota `POST /ai/recommendation` está na API. O formulário no Flutter segue na entrega do app.
-2. Sincronizar o `roadmap.svg` no [dinna-flutter](https://github.com/jeancarlosaps/dinna-flutter) se o status R0 mudar lá também.
+1. Configurar `GEMINI_API_KEY` no ambiente de apresentação. Sem a chave, a recomendação segue pelo fallback determinístico.
+2. Confirmar a URL pública do deploy no Railway, descrito em [`docs/deploy.md`](docs/deploy.md).
+3. Atualizar a ilustração `roadmap.svg` nos dois repositórios para o estado atual das releases.
 
 ## 14 · Links
 
+- Documentação de Gestão do Projeto (Confluence): <https://jeancarlosaps.atlassian.net/wiki/spaces/DD/pages/9142274>
 - Jira (SCRUM): <https://jeancarlosaps.atlassian.net/jira/software/projects/SCRUM/boards/1>
 - Figma: <https://www.figma.com/design/xYeeN6UBmj3lF458GF9qwA/Dinna-%C2%B7-App-Cliente?node-id=0-1>
 - Aplicativo Flutter do Dinna: <https://github.com/jeancarlosaps/dinna-flutter>
