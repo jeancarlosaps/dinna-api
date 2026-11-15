@@ -9,9 +9,10 @@ issue no Jira → branch a partir da dev → commits pequenos → validação lo
 ```
 
 1. **Escolha uma issue** no [Jira (SCRUM)](https://jeancarlosaps.atlassian.net/jira/software/projects/SCRUM/boards/1) e mova-a para _Em andamento_.
-2. **Atualize a dev** e crie sua branch:
+2. **Atualize a dev** e crie sua branch. O clone começa na `main`, a branch padrão; os comandos abaixo trazem a `dev` mesmo assim:
 
    ```bash
+   git fetch origin
    git switch dev
    git pull
    git switch -c feature/SCRUM-<n>-descricao-curta
@@ -21,6 +22,7 @@ issue no Jira → branch a partir da dev → commits pequenos → validação lo
 4. **Valide localmente** (seção abaixo).
 5. **Abra o PR** para a `dev` usando o template.
 6. **Peça revisão** a outro integrante. O merge acontece com a CI verde e uma aprovação.
+7. **Promoção:** depois de validada, a `dev` é promovida para a `main` por PR.
 
 ## Branches principais
 
