@@ -282,7 +282,7 @@ A resposta do Gemini só é lida como lista de ids. Partes com `thought: true` s
 - ignora nome, preço e frase produzidos lá;
 - se não sobrar id, executa o fallback no mesmo snapshot.
 
-A chamada usa `fetch` do Node, modelo `gemini-3.6-flash` e saída estruturada. Não há SDK nem dependência nova. O teste injeta um fake: não há rede, não há chave e o relógio do timeout é controlado.
+A chamada usa `fetch` do Node, modelo `gemini-3.5-flash-lite` e saída estruturada. O modelo foi escolhido pela latência: a chamada precisa terminar dentro do timeout padrão de 8 s, que fica abaixo do timeout de 10 s do app. Não há SDK nem dependência nova. O teste injeta um fake: não há rede, não há chave e o relógio do timeout é controlado.
 
 O módulo fica em `src/modules/recommendations/`, registrado em `buildApp` como produtos e pedidos. A função pura de seleção é o núcleo testável. A rota só valida, lê o snapshot e devolve o JSON do contrato.
 
